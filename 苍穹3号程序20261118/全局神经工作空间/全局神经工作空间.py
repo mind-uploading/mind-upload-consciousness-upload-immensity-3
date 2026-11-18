@@ -385,7 +385,7 @@ class MemoryWindow:
         Label(row, text="版本号", font=("Microsoft YaHei", 11)).pack(side=LEFT)
         self.version_box = ttk.Combobox(row, textvariable=self.version, width=26)
         self.version_box.pack(side=LEFT, padx=6)
-        Label(row, text="（如 100、研究者_v1）" if is_import else "（如 104）",
+        Label(row, text="（如 张三、123、研究者_v1）" if is_import else "（如 张三、123、研究者_v1）",
               fg="#999").pack(side=LEFT)
 
         self.tip_label = Label(self.win, textvariable=self.status, fg="#0a58ca", anchor="w")
