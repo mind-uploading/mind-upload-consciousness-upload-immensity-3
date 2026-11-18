@@ -1,7 +1,6 @@
 #全局神经工作空间GW
 import copy
 import os
-import time
 from tkinter import *
 from tkinter import ttk, messagebox, filedialog
 
@@ -223,7 +222,7 @@ class 记忆包窗口:
 
         self._建界面()
         self._预填()
-        self._刷新已有()
+        self._刷新版本列表()
         self._刷新明细()
         self._校验()
         try:
@@ -248,75 +247,40 @@ class 记忆包窗口:
         self.状态 = StringVar(value="")
 
         顶部 = Frame(self.窗口)
-        顶部.pack(fill=X, padx=10, pady=(10, 2))
-        Label(顶部, text="记忆包", font=("Microsoft YaHei", 14, "bold")).pack(side=LEFT)
-        Label(顶部, text="  导入：启动时选择记忆包        导出：把当前心智内容写成记忆包",
+        顶部.pack(fill=X, padx=12, pady=(12, 2))
+        Label(顶部, text=("导入记忆包" if self.模式 == "导入" else "导出记忆包"),
+              font=("Microsoft YaHei", 15, "bold")).pack(side=LEFT)
+        Label(顶部, text=("  选择已有版本，或直接输入版本号" if self.模式 == "导入"
+                          else "  填写新版本号，把当前心智内容写成一包"),
               fg="#666").pack(side=LEFT)
 
-        模式行 = Frame(self.窗口)
-        模式行.pack(fill=X, padx=10, pady=(2, 6))
-        for 名称 in ("导入", "导出"):
-            当前 = (名称 == self.模式)
-            标签 = Label(模式行, text=名称, width=8, padx=8, pady=3,
-                         relief=SUNKEN if 当前 else RIDGE,
-                         bg="#cfe3ff" if 当前 else "#efefef")
-            标签.pack(side=LEFT, padx=(0, 6))
-            if not 当前:
-                标签.bind("<Button-1>", lambda 事件, 名=名称: self._提示不能切换(名))
-        Label(模式行, text="（导入只在启动时、导出只在运行中，不能在这里直接切换）",
-              fg="#999").pack(side=LEFT, padx=6)
+        输入行 = Frame(self.窗口)
+        输入行.pack(fill=X, padx=12, pady=8)
+        Label(输入行, text="版本号", font=("Microsoft YaHei", 11)).pack(side=LEFT)
+        #导入时可以下拉选已有版本；导出时直接输入新版本号
+        self.版本号框 = ttk.Combobox(输入行, textvariable=self.版本号, width=26)
+        self.版本号框.pack(side=LEFT, padx=6)
+        Label(输入行, text="（如 100、研究者_v1）" if self.模式 == "导入" else "（如 104）",
+              fg="#999").pack(side=LEFT)
 
-        查询行 = Frame(self.窗口)
-        查询行.pack(fill=X, padx=10, pady=3)
-        Label(查询行, text="版本号").pack(side=LEFT)
-        self.版本号框 = Entry(查询行, textvariable=self.版本号, width=16)
-        self.版本号框.pack(side=LEFT, padx=(2, 10))
-        Button(查询行, text="查找", width=6, command=self._查找).pack(side=LEFT)
-        Label(查询行, text="（只需输入一个版本号，如 100、研究者_v1；也可在下方列表双击已有的记忆包）",
-              fg="#999").pack(side=LEFT, padx=8)
-        self.版本号框.bind("<Return>", lambda 事件: self._查找())
+        self.提示标签 = Label(self.窗口, textvariable=self.状态, fg="#0a58ca", anchor="w")
+        self.提示标签.pack(fill=X, padx=12)
 
-        包名行 = Frame(self.窗口)
-        包名行.pack(fill=X, padx=10, pady=3)
-        Label(包名行, text="记忆包").pack(side=LEFT)
-        self.包名框 = Entry(包名行, textvariable=self.包名, width=32)
-        self.包名框.pack(side=LEFT, padx=(2, 8))
-        #包名由版本号自动生成（或由列表双击选中），不需要手动填写
-        self.包名框.config(state="readonly")
-        self.提示标签 = Label(包名行, textvariable=self.状态, fg="#0a58ca")
-        self.提示标签.pack(side=LEFT, padx=6)
-
-        Label(self.窗口, text="已有版本（双击选中）").pack(anchor=W, padx=10, pady=(8, 2))
-        表框 = Frame(self.窗口)
-        表框.pack(fill=X, padx=10)
-        列 = ("包名",) + tuple(规格["名称"][:4] for 规格 in 记忆管理.类型规格) + ("修改时间",)
-        self.已有表 = ttk.Treeview(表框, columns=列, show="headings", height=8)
-        for 名称 in 列:
-            self.已有表.heading(名称, text=名称)
-            self.已有表.column(名称, width=105 if 名称 == "包名" else 62,
-                            anchor="w" if 名称 == "包名" else "center", stretch=False)
-        滚动 = Scrollbar(表框, orient=VERTICAL, command=self.已有表.yview)
-        self.已有表.configure(yscrollcommand=滚动.set)
-        self.已有表.pack(side=LEFT, fill=X, expand=True)
-        滚动.pack(side=RIGHT, fill=Y)
-        self.已有表.bind("<<TreeviewSelect>>", self._选中已有)
-        self.已有表.bind("<Double-1>", self._选中已有)
-
-        Label(self.窗口, text="文件明细（一键=9 行自动填满；逐文件=单独指定某行）").pack(anchor=W, padx=10, pady=(8, 2))
+        Label(self.窗口, text="这一包的 9 类文件").pack(anchor=W, padx=12, pady=(10, 2))
         明细框 = Frame(self.窗口)
-        明细框.pack(fill=BOTH, expand=True, padx=10)
-        列2 = ("类型", "文件", "条数", "状态")
-        self.明细表 = ttk.Treeview(明细框, columns=列2, show="headings", height=9)
-        for 名称, 宽 in (("类型", 150), ("文件", 660), ("条数", 80), ("状态", 160)):
+        明细框.pack(fill=BOTH, expand=True, padx=12)
+        self.明细表 = ttk.Treeview(明细框, columns=("类型", "条数", "状态"),
+                                  show="headings", height=10)
+        for 名称, 宽, 对齐 in (("类型", 220, "w"), ("条数", 110, "center"), ("状态", 460, "w")):
             self.明细表.heading(名称, text=名称)
-            self.明细表.column(名称, width=宽, anchor="w" if 名称 == "文件" else "center")
+            self.明细表.column(名称, width=宽, anchor=对齐)
         滚动2 = Scrollbar(明细框, orient=VERTICAL, command=self.明细表.yview)
         self.明细表.configure(yscrollcommand=滚动2.set)
         self.明细表.pack(side=LEFT, fill=BOTH, expand=True)
         滚动2.pack(side=RIGHT, fill=Y)
 
         按钮行 = Frame(self.窗口)
-        按钮行.pack(fill=X, padx=10, pady=8)
+        按钮行.pack(fill=X, padx=12, pady=10)
         Button(按钮行, text="单独指定所选行…", command=self._选择文件).pack(side=LEFT)
         Button(按钮行, text="恢复自动", command=self._恢复自动).pack(side=LEFT, padx=6)
         self.确认按钮 = Button(按钮行, width=12, command=self._确认, state=DISABLED,
@@ -329,73 +293,22 @@ class 记忆包窗口:
 
     # ---------------- 事件 ----------------
 
-    def _提示不能切换(self, 名称):
-        messagebox.showinfo(
-            "不能直接切换",
-            "导入只在启动时进行，导出只在运行中进行，不能在这个窗口里直接切换。\n\n"
-            "要导入：关闭本窗口，重新启动程序。\n"
-            "要导出：关闭本窗口，在运行中的主界面点“记忆包…（导出）”。",
-            parent=self.窗口)
-
     def _预填(self):
         if self.模式 == "导入":
-            if 公共状态.当前记忆包:
-                self.包名.set(公共状态.当前记忆包)
             return
         self.版本号.set(记忆管理.建议版本号(公共状态.当前记忆包))
+
+    def _刷新版本列表(self):
+        """导入时把已有版本放进下拉框，导出时不需要"""
+        if self.模式 == "导入":
+            self.版本号框["values"] = sorted(记忆管理.列出记忆包())
 
     def _输入变化(self, *参数):
         if self._静默:
             return
         包名, 错误 = 记忆管理.规范化包名(self.版本号.get())
         self._静默 = True
-        if self.模式 == "导入":
-            #导入：输入合法版本号就自动切换包名；输入了非法内容则清空，避免误导入
-            if not 错误:
-                self.包名.set(包名)
-            elif self.版本号.get().strip():
-                self.包名.set("")
-        else:
-            self.包名.set(包名 or "")
-        self._静默 = False
-        if self.模式 == "导入":
-            self._刷新已有()
-        self._刷新明细()
-        self._校验()
-
-    def _查找(self):
-        self._刷新已有()
-        项目 = self.已有表.get_children()
-        if len(项目) == 1:
-            self.已有表.selection_set(项目[0])
-            self._选中已有()
-
-    def _刷新已有(self):
-        for 项目 in self.已有表.get_children():
-            self.已有表.delete(项目)
-        版本号 = self.版本号.get().strip() if self.模式 == "导入" else ""
-        包们 = 记忆管理.列出记忆包()
-        for 包名 in sorted(包们):
-            if 版本号 and 版本号 not in 包名:
-                continue
-            值 = [包名]
-            for 规格 in 记忆管理.类型规格:
-                路径 = 包们[包名]["路径"].get(规格["键"])
-                数量 = 记忆管理.条数(路径, 规格["键"]) if 路径 else None
-                值.append("—" if 数量 is None else 数量)
-            值.append(time.strftime("%Y-%m-%d %H:%M", time.localtime(包们[包名]["时间"])))
-            self.已有表.insert("", END, iid=包名, values=值)
-
-    def _选中已有(self, 事件=None):
-        选中 = self.已有表.selection()
-        if not 选中:
-            return
-        if self.模式 != "导入":
-            self.状态.set("提示：导出只需填版本号；选中已有包不会改动它")
-            return
-        #双击列表可以选中旧命名的记忆包（如 研究者_v1、张毅），导入时仍然兼容
-        self._静默 = True
-        self.包名.set(选中[0])
+        self.包名.set(包名 or "")
         self._静默 = False
         self._刷新明细()
         self._校验()
@@ -416,7 +329,7 @@ class 记忆包窗口:
                     状态 += "（手动指定）"
                 条数文本 = "—" if 行["条数"] is None else str(行["条数"])
                 self.明细表.insert("", END, iid=行["键"],
-                                 values=(行["名称"], 行["路径"], 条数文本, 状态))
+                                 values=(行["名称"], 条数文本, 状态))
         else:
             包名 = self.包名.get().strip() or "未命名"
             for 行 in 记忆管理.导出预览(包名, self.覆盖路径):
@@ -424,7 +337,7 @@ class 记忆包窗口:
                 if 行["键"] in self.覆盖路径:
                     状态 += "（手动指定）"
                 self.明细表.insert("", END, iid=行["键"],
-                                 values=(行["名称"], 行["路径"], str(行["条数"]), 状态))
+                                 values=(行["名称"], str(行["条数"]), 状态))
 
     def _校验(self):
         有效 = False
@@ -441,7 +354,7 @@ class 记忆包窗口:
         else:
             包名 = self.包名.get().strip()
             if not 包名:
-                提示 = "请输入版本号，或在下方列表双击选择记忆包"
+                提示 = "请选择或输入版本号"
             else:
                 找到 = 0
                 for 规格 in 记忆管理.类型规格:
@@ -540,7 +453,7 @@ class 记忆包窗口:
         if 跳过:
             消息 += "\n\n未写入：\n" + "、".join(跳过)
         messagebox.showinfo("导出完成", 消息, parent=self.窗口)
-        self._刷新已有()
+        self._刷新版本列表()
         self._刷新明细()
         self._校验()
 

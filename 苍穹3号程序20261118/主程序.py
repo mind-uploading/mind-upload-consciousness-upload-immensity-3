@@ -1,8 +1,13 @@
 #苍穹3号主程序
 import copy
+import os
 import time
 
 import 公共状态
+
+#相对路径（意识数据、CNN/ART模型、界面资源）一律以程序目录为基准，
+#这样从任意目录启动（例如 python 苍穹3号程序20261118/主程序.py）都不会找不到意识数据
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
 from 知觉分类模块.知觉分类模块 import 加载知觉模型,初始化摄像头,clear_senlist,vision,input_senlist
 from 价值分类记忆与价值系统.价值分类记忆与价值系统 import emo
 from 行为与计划模块.行为与计划模块 import ACT,update_v,change_acthablist,choose_act,update_psav_memory,act_detail,output_act
