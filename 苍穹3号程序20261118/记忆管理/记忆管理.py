@@ -1,11 +1,13 @@
 #记忆管理（记忆的扫描、导入、导出；本模块不弹任何命令行输入，交互全部交给界面）
 import os
-import re
 
 import 公共状态
 
 
 DATA_ROOT = "意识数据"
+
+#自动保存固定用这个版本号：每回合覆盖，只保留最近一回合，不会动用户导入的版本
+AUTO_SAVE_NAME = "自动保存"
 
 #9 类意识数据的规格
 #  key：内部标识
@@ -40,19 +42,6 @@ def normalize_version(version):
         if char in ILLEGAL_CHARS:
             return None, "版本号中不能包含 \\ / : * ? \" < > | 等字符"
     return version, ""
-
-
-def suggest_version(current_memory=None):
-    """导出界面预填：当前版本号的下一位版本号（如 研究者_v1 → 研究者_v2、103 → 104）"""
-    if current_memory:
-        matched = re.match(r"^(.*?)(\d+)$", current_memory)
-        if matched:
-            return matched.group(1) + str(int(matched.group(2)) + 1)
-    largest = 0
-    for memory in list_memories():
-        if memory.isascii() and memory.isdigit():
-            largest = max(largest, int(memory))
-    return str(largest + 1)
 
 
 # ---------------- 路径与统计 ----------------

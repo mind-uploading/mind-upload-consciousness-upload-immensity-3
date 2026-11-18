@@ -14,7 +14,7 @@ from 行为与计划模块.行为与计划模块 import ACT,update_v,change_acth
 from 记忆模块.记忆模块 import add_memorylist
 from 世界模型.世界模型 import update_transmatrix,predict_next_state_chance
 from 全局神经工作空间.全局神经工作空间 import 初始化界面,extend_senlist,open_memory_window
-from 记忆管理.记忆管理 import export_memory
+from 记忆管理.记忆管理 import export_memory,AUTO_SAVE_NAME
 
 #语言模块
 from 语言模块.语言模块 import use_dictionary,update_dictionary,generate_sentence,update_word_trans_matrix
@@ -341,11 +341,12 @@ while True:
     公共状态.psenlist=copy.deepcopy(公共状态.senlist)
     公共状态.pactlist=copy.deepcopy(公共状态.actlist)
 
-    #若未进入不可变模式且勾选了“每回合自动保存”，本回合结束后写回当前记忆
-    if 公共状态.mode!="0" and 公共状态.varcb_autosave is not None and 公共状态.varcb_autosave.get()==1 and 公共状态.current_memory:
-        成功,报告,错误=export_memory(公共状态.current_memory)
+    #每回合自动保存（常开）：固定写到记忆「自动保存」，只保留最近一回合，
+    #不写当前导入的版本，避免误覆盖
+    if 公共状态.mode!="0" and 公共状态.current_memory:
+        成功,报告,错误=export_memory(AUTO_SAVE_NAME)
         if 成功:
-            print("已自动保存到记忆：",公共状态.current_memory)
+            print("已自动保存到记忆：",AUTO_SAVE_NAME)
         else:
             print("自动保存失败：",错误)
 

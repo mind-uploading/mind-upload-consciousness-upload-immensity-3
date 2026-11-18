@@ -134,9 +134,9 @@ def 初始化界面():
     txnloutput=Text(root,width=40,height=3)
     txnloutput.grid(row=13,column=3)
 
-    varcb_autosave=IntVar()
-    cb自动保存=Checkbutton(root,text="每回合自动保存到当前记忆",variable=varcb_autosave,onvalue=1,offvalue=0)
-    cb自动保存.grid(row=12,column=1)
+    #自动保存常开：固定写到记忆「自动保存」，只保留最近一回合，导入时选它即可恢复
+    lb_autosave=Label(root,text="每回合自动保存到记忆「自动保存」",fg="#666")
+    lb_autosave.grid(row=12,column=1)
     btn_memory=Button(root,text="记忆…（导出）",command=lambda: open_memory_window("导出"))
     btn_memory.grid(row=13,column=1)
 
@@ -168,7 +168,6 @@ def 初始化界面():
     公共状态.varcbcounts2=varcbcounts2
     公共状态.txact_detail_list=txact_detail_list
     公共状态.txnloutput=txnloutput
-    公共状态.varcb_autosave=varcb_autosave
 
 
 
@@ -220,7 +219,6 @@ class MemoryWindow:
         self.win.protocol("WM_DELETE_WINDOW", self._on_close)
 
         self._build_ui()
-        self._prefill()
         self._refresh_versions()
         self._refresh_detail()
         self._validate()
@@ -321,11 +319,6 @@ class MemoryWindow:
 
     # ---------------- 事件 ----------------
 
-    def _prefill(self):
-        if self.mode == "导入":
-            return
-        self.version.set(记忆管理.suggest_version(公共状态.current_memory))
-
     def _refresh_versions(self):
         if self.mode == "导入":
             self.version_box["values"] = sorted(记忆管理.list_memories())
@@ -414,7 +407,7 @@ class MemoryWindow:
     def _do_import(self):
         memory = self.memory.get().strip()
         skip_bad_lines = False
-        ok, report, errors = 记忆管理.import_memory(
+        ok, _, errors = 记忆管理.import_memory(
             memory, self.overrides, skip_bad_lines=False, commit=False)
         if not ok and errors:
             lines = []
@@ -427,27 +420,16 @@ class MemoryWindow:
                     "\n".join(lines) + "\n\n跳过这些行继续导入？", parent=self.win):
                 return
             skip_bad_lines = True
-            ok, report, errors = 记忆管理.import_memory(
+            ok, _, errors = 记忆管理.import_memory(
                 memory, self.overrides, skip_bad_lines=True, commit=False)
             if not ok:
                 self._show_errors(errors)
                 return
 
-        summary = "、".join("%s %s" % (item["name"], item["count"]) for item in report)
-        missing = [item["name"] for item in report if item["status"].startswith("缺失")]
-        text = "从记忆「%s」导入：\n\n%s\n\n当前内容会被替换。" % (memory, summary)
-        if missing:
-            text += "\n\n没有文件的类型按空表导入：" + "、".join(missing)
-        autobiographic = next((item["count"] for item in report if item["key"] == "自传体"), 0)
-        action_space = next((item["count"] for item in report if item["key"] == "行为空间"), 0)
-        if autobiographic < 5:
-            text += "\n\n注意：自传体记忆只有 %d 条（至少需要 5 条）。" % autobiographic
-        if action_space == 0:
-            text += "\n\n注意：行为空间为空。"
-        if not messagebox.askyesno("确认导入", text + "\n\n确定导入？", parent=self.win):
+        if not messagebox.askyesno("确认导入", "确定导入这些记忆吗？", parent=self.win):
             return
 
-        ok, report, errors = 记忆管理.import_memory(
+        ok, _, errors = 记忆管理.import_memory(
             memory, self.overrides, skip_bad_lines=skip_bad_lines, commit=True)
         if not ok:
             self._show_errors(errors)
