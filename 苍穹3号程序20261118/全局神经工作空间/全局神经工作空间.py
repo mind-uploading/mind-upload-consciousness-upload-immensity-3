@@ -199,73 +199,72 @@ def extend_senlist():
 
 
 
-#============================ 设置窗口 ============================
+#============================ 模式设置 ============================
 
-def open_settings_window():
-    """启动设置：模式和参数都在界面里选，替代原来的命令行询问。
-    点“开始”才继续；直接关闭窗口视为放弃启动。"""
-    win=Toplevel(公共状态.root)
-    win.title("设置")
-    win.resizable(False,False)
-    win.transient(公共状态.root)
-    win.grab_set()
+class ModeSettings(Frame):
+    """启动时的模式与参数设置。
+    可单独使用，也可以嵌在导入窗口顶部，和“导入记忆”共用一个界面。"""
 
-    mode=StringVar(value="2")
-    sleeptime=StringVar(value="2")
-    imgsource=StringVar(value="1")
-    add_actlist=IntVar(value=0)
-    randforget=IntVar(value=0)
-    adjust_hapsad=IntVar(value=1)
-    adjust_acthab=IntVar(value=1)
-    hapsum_threshold=StringVar(value="2")
-    sadsum_threshold=StringVar(value="2")
-    v_acthab_threshold=StringVar(value="1")
-    v_adjustact_threshold=StringVar(value="2")
-    started=[False]
+    def __init__(self, parent):
+        super().__init__(parent)
 
-    Label(win,text="模式",font=("Microsoft YaHei",10,"bold")).pack(anchor="w",padx=12,pady=(10,2))
-    #四种模式对应原来的 1/2/3/0
-    for text,value in (("不可变模式","1"),("默认模式","2"),("自主模式","3"),("自定义","0")):
-        Radiobutton(win,text=text,variable=mode,value=value,
-                    command=lambda: rebuild()).pack(anchor="w",padx=24)
+        self.mode=StringVar(value="2")
+        self.sleeptime=StringVar(value="2")
+        self.imgsource=StringVar(value="1")
+        self.add_actlist=IntVar(value=0)
+        self.randforget=IntVar(value=0)
+        self.adjust_hapsad=IntVar(value=1)
+        self.adjust_acthab=IntVar(value=1)
+        self.hapsum_threshold=StringVar(value="2")
+        self.sadsum_threshold=StringVar(value="2")
+        self.v_acthab_threshold=StringVar(value="1")
+        self.v_adjustact_threshold=StringVar(value="2")
 
-    params=LabelFrame(win,text="参数",width=580,height=240)
-    params.pack(fill="both",expand=True,padx=12,pady=8)
-    params.pack_propagate(False)
+        Label(self,text="模式",font=("Microsoft YaHei",11,"bold")).grid(row=0,column=0,sticky="w")
+        modes=Frame(self)
+        modes.grid(row=0,column=1,columnspan=2,sticky="w",padx=8)
+        #四种模式对应原来的 1/2/3/0
+        for text,value in (("不可变模式","1"),("默认模式","2"),("自主模式","3"),("自定义","0")):
+            Radiobutton(modes,text=text,variable=self.mode,value=value,
+                        command=self._rebuild).pack(side=LEFT,padx=(0,10))
 
-    def entry(row,column,label,var,width=8):
-        Label(params,text=label).grid(row=row,column=column*2,sticky="e",padx=(8,4),pady=4)
-        Entry(params,textvariable=var,width=width).grid(row=row,column=column*2+1,sticky="w",pady=4)
+        self.params=LabelFrame(self,text="参数")
+        self.params.grid(row=1,column=0,columnspan=3,sticky="we",pady=6)
+        self._rebuild()
 
-    def rebuild():
+    def _entry(self,row,column,label,var,width=8):
+        Label(self.params,text=label).grid(row=row,column=column*2,sticky="e",padx=(8,4),pady=4)
+        Entry(self.params,textvariable=var,width=width).grid(row=row,column=column*2+1,sticky="w",pady=4)
+
+    def _rebuild(self):
         #按模式切换参数区：预设模式不需要填写，自主模式要间隔和图像来源，自定义要各项开关
-        for child in params.winfo_children():
+        for child in self.params.winfo_children():
             child.destroy()
-        current=mode.get()
+        current=self.mode.get()
         if current in ("1","2"):
-            Label(params,text="使用预设参数，无需填写。").grid(row=0,column=0,sticky="w",padx=10,pady=10)
+            Label(self.params,text="使用预设参数，无需填写。").grid(row=0,column=0,sticky="w",padx=10,pady=8)
         elif current=="3":
-            entry(0,0,"每回合之间的睡眠时间（秒）",sleeptime)
-            Label(params,text="图像来源").grid(row=1,column=0,sticky="e",padx=(8,4),pady=4)
-            frame=Frame(params)
+            self._entry(0,0,"每回合之间的睡眠时间（秒）",self.sleeptime)
+            Label(self.params,text="图像来源").grid(row=1,column=0,sticky="e",padx=(8,4),pady=4)
+            frame=Frame(self.params)
             frame.grid(row=1,column=1,sticky="w",pady=4)
-            Radiobutton(frame,text="摄像头",variable=imgsource,value="1").pack(side=LEFT)
-            Radiobutton(frame,text="截屏（左半边屏幕）",variable=imgsource,value="2").pack(side=LEFT,padx=8)
+            Radiobutton(frame,text="摄像头",variable=self.imgsource,value="1").pack(side=LEFT)
+            Radiobutton(frame,text="截屏（左半边屏幕）",variable=self.imgsource,value="2").pack(side=LEFT,padx=8)
         else:
-            Checkbutton(params,text="上一回合的行为概念加入下一回合的知觉概念列表",
-                        variable=add_actlist).grid(row=0,column=0,columnspan=2,sticky="w",padx=10,pady=2)
-            Checkbutton(params,text="激活随机遗忘机制",
-                        variable=randforget).grid(row=1,column=0,columnspan=2,sticky="w",padx=10,pady=2)
-            Checkbutton(params,text="允许调整情绪习惯列表",
-                        variable=adjust_hapsad).grid(row=2,column=0,columnspan=2,sticky="w",padx=10,pady=2)
-            entry(3,0,"喜的价值分类记忆激活阈值",hapsum_threshold)
-            entry(3,1,"哀的价值分类记忆激活阈值",sadsum_threshold)
-            Checkbutton(params,text="允许调整行为习惯列表",
-                        variable=adjust_acthab).grid(row=4,column=0,columnspan=2,sticky="w",padx=10,pady=2)
-            entry(5,0,"行为固定化阈值",v_acthab_threshold)
-            entry(5,1,"行为调整激活阈值",v_adjustact_threshold)
+            Checkbutton(self.params,text="上一回合的行为概念加入下一回合的知觉概念列表",
+                        variable=self.add_actlist).grid(row=0,column=0,columnspan=2,sticky="w",padx=10,pady=2)
+            Checkbutton(self.params,text="激活随机遗忘机制",
+                        variable=self.randforget).grid(row=1,column=0,columnspan=2,sticky="w",padx=10,pady=2)
+            Checkbutton(self.params,text="允许调整情绪习惯列表",
+                        variable=self.adjust_hapsad).grid(row=2,column=0,columnspan=2,sticky="w",padx=10,pady=2)
+            self._entry(3,0,"喜的价值分类记忆激活阈值",self.hapsum_threshold)
+            self._entry(3,1,"哀的价值分类记忆激活阈值",self.sadsum_threshold)
+            Checkbutton(self.params,text="允许调整行为习惯列表",
+                        variable=self.adjust_acthab).grid(row=4,column=0,columnspan=2,sticky="w",padx=10,pady=2)
+            self._entry(5,0,"行为固定化阈值",self.v_acthab_threshold)
+            self._entry(5,1,"行为调整激活阈值",self.v_adjustact_threshold)
 
-    def read_threshold(var,label):
+    def _read_threshold(self,var,label):
         #阈值按原版范围 0-5 校验
         try:
             value=int(var.get().strip())
@@ -275,60 +274,49 @@ def open_settings_window():
             raise ValueError(label+"请填写 0-5 的整数")
         return value
 
-    def on_start():
-        current=mode.get()
-        try:
-            if current=="3":
-                try:
-                    sleep_value=int(sleeptime.get().strip())
-                except ValueError:
-                    raise ValueError("睡眠时间请填写非负整数")
-                if sleep_value<0:
-                    raise ValueError("睡眠时间请填写非负整数")
-                threshold={}
-            elif current=="0":
-                sleep_value=None
-                threshold={}
-                if adjust_hapsad.get()==1:
-                    threshold["hap"]=read_threshold(hapsum_threshold,"喜的阈值")
-                    threshold["sad"]=read_threshold(sadsum_threshold,"哀的阈值")
-                if adjust_acthab.get()==1:
-                    threshold["v_acthab"]=read_threshold(v_acthab_threshold,"行为固定化阈值")
-                    threshold["v_adjustact"]=read_threshold(v_adjustact_threshold,"行为调整阈值")
-            else:
-                sleep_value=None
-                threshold={}
-        except ValueError as error:
-            messagebox.showerror("设置",str(error),parent=win)
-            return
-
-        公共状态.mode=current
+    def read(self):
+        """校验并返回设置；不合法时抛 ValueError。"""
+        current=self.mode.get()
+        values={"mode":current,"sleeptime":None,"imgsource":self.imgsource.get(),
+                "add_actlist":self.add_actlist.get(),"randforget":self.randforget.get(),
+                "adjust_hapsad":self.adjust_hapsad.get(),"adjust_acthab":self.adjust_acthab.get()}
+        thresholds={}
         if current=="3":
-            公共状态.sleeptime=sleep_value
-            公共状态.imgsource=imgsource.get()
+            try:
+                sleep_value=int(self.sleeptime.get().strip())
+            except ValueError:
+                raise ValueError("睡眠时间请填写非负整数")
+            if sleep_value<0:
+                raise ValueError("睡眠时间请填写非负整数")
+            values["sleeptime"]=sleep_value
         elif current=="0":
-            公共状态.senlist_add_actlist=str(add_actlist.get())
-            公共状态.randforget=str(randforget.get())
-            公共状态.adjust_hapsadhablist=str(adjust_hapsad.get())
-            公共状态.adjust_acthablist=str(adjust_acthab.get())
-            if adjust_hapsad.get()==1:
-                公共状态.hapsum_mem_threshold=threshold["hap"]
-                公共状态.sadsum_mem_threshold=threshold["sad"]
-            if adjust_acthab.get()==1:
-                公共状态.v_acthab_threshold=threshold["v_acthab"]
-                公共状态.v_adjustact_threshold=threshold["v_adjustact"]
-        started[0]=True
-        win.destroy()
+            if values["adjust_hapsad"]==1:
+                thresholds["hap"]=self._read_threshold(self.hapsum_threshold,"喜的阈值")
+                thresholds["sad"]=self._read_threshold(self.sadsum_threshold,"哀的阈值")
+            if values["adjust_acthab"]==1:
+                thresholds["v_acthab"]=self._read_threshold(self.v_acthab_threshold,"行为固定化阈值")
+                thresholds["v_adjustact"]=self._read_threshold(self.v_adjustact_threshold,"行为调整阈值")
+        values["thresholds"]=thresholds
+        return values
 
-    def on_close():
-        if messagebox.askyesno("退出","不设置就无法开始，确定退出吗？",parent=win):
-            win.destroy()
-
-    win.protocol("WM_DELETE_WINDOW",on_close)
-    Button(win,text="开始",width=12,command=on_start).pack(pady=(0,12))
-    rebuild()
-    公共状态.root.wait_window(win)
-    return started[0]
+    def apply(self,values):
+        """把设置写入公共状态。"""
+        公共状态.mode=values["mode"]
+        if values["mode"]=="3":
+            公共状态.sleeptime=values["sleeptime"]
+            公共状态.imgsource=values["imgsource"]
+        elif values["mode"]=="0":
+            公共状态.senlist_add_actlist=str(values["add_actlist"])
+            公共状态.randforget=str(values["randforget"])
+            公共状态.adjust_hapsadhablist=str(values["adjust_hapsad"])
+            公共状态.adjust_acthablist=str(values["adjust_acthab"])
+            thresholds=values["thresholds"]
+            if "hap" in thresholds:
+                公共状态.hapsum_mem_threshold=thresholds["hap"]
+                公共状态.sadsum_mem_threshold=thresholds["sad"]
+            if "v_acthab" in thresholds:
+                公共状态.v_acthab_threshold=thresholds["v_acthab"]
+                公共状态.v_adjustact_threshold=thresholds["v_adjustact"]
 
 
 #============================ 记忆窗口（导入/导出） ============================
@@ -338,15 +326,19 @@ class MemoryWindow:
     “一键”= 只填一个版本号，9 类文件路径自动拼出（默认）；
     “逐文件导入”= 勾选后每个类型行右侧出现“选择文件…”，单独指定读哪个文件。"""
 
-    def __init__(self, parent, mode):
+    def __init__(self, parent, mode, with_settings=False):
         self.parent = parent
         self.mode = mode
+        self.with_settings = with_settings and mode == "导入"
         self.overrides = {}
         self._silent = False
 
         self.win = Toplevel(parent)
-        self.win.title("导入记忆" if mode == "导入" else "导出记忆")
-        self.win.geometry("1120x740")
+        if self.with_settings:
+            self.win.title("苍穹3号 · 设置与导入")
+        else:
+            self.win.title("导入记忆" if mode == "导入" else "导出记忆")
+        self.win.geometry("1120x900" if self.with_settings else "1120x740")
         self.win.transient(parent)
         self.win.protocol("WM_DELETE_WINDOW", self._on_close)
 
@@ -375,6 +367,11 @@ class MemoryWindow:
         self.memory = StringVar()
         self.status = StringVar(value="")
         is_import = self.mode == "导入"
+
+        if self.with_settings:
+            #模式设置和导入放在同一个界面
+            self.settings = ModeSettings(self.win)
+            self.settings.pack(fill=X, padx=12, pady=(10, 0))
 
         header = Frame(self.win)
         header.pack(fill=X, padx=12, pady=(12, 2))
@@ -442,7 +439,9 @@ class MemoryWindow:
         buttons = Frame(self.win)
         buttons.pack(fill=X, padx=12, pady=10)
         self.confirm_btn = Button(buttons, width=12, command=self._on_confirm,
-                                  state=DISABLED, text="确认导入" if is_import else "确认导出")
+                                  state=DISABLED,
+                                  text="开始" if self.with_settings
+                                  else ("确认导入" if is_import else "确认导出"))
         self.confirm_btn.pack(side=RIGHT)
         Button(buttons, text="退出" if is_import else "关闭", width=8,
                command=self._on_close).pack(side=RIGHT, padx=6)
@@ -538,6 +537,14 @@ class MemoryWindow:
 
     def _do_import(self):
         memory = self.memory.get().strip()
+        settings = None
+        if self.with_settings:
+            #先校验模式和参数，再检查记忆文件
+            try:
+                settings = self.settings.read()
+            except ValueError as error:
+                messagebox.showerror("设置", str(error), parent=self.win)
+                return
         skip_bad_lines = False
         ok, _, errors = 记忆管理.import_memory(
             memory, self.overrides, skip_bad_lines=False, commit=False)
@@ -566,7 +573,9 @@ class MemoryWindow:
         if not ok:
             self._show_errors(errors)
             return
-        messagebox.showinfo("导入成功——————————————", "相关记忆已导入。" % memory, parent=self.win)
+        if self.with_settings:
+            self.settings.apply(settings)
+        messagebox.showinfo("导入成功——————————————", "已导入版本号：%s。" % memory, parent=self.win)
         self.win.destroy()
 
     def _do_export(self):
@@ -653,9 +662,10 @@ class MemoryWindow:
         self.win.destroy()
 
 
-def open_memory_window(mode="导出"):
+def open_memory_window(mode="导出", with_settings=False):
     """打开记忆窗口。导入模式会阻塞到窗口关闭（供启动时使用）；
-    导出模式同样阻塞，避免导出过程中主循环改动内存。"""
+    导出模式同样阻塞，避免导出过程中主循环改动内存。
+    with_settings=True 时，模式设置与导入共用一个界面。"""
     if 公共状态.root is None:
         return
     existing = 公共状态.memory_window
@@ -667,7 +677,7 @@ def open_memory_window(mode="导出"):
                 return
         except Exception:
             pass
-    window = MemoryWindow(公共状态.root, mode)
+    window = MemoryWindow(公共状态.root, mode, with_settings)
     公共状态.memory_window = window
     try:
         window.wait_closed()

@@ -13,7 +13,7 @@ from 价值分类记忆与价值系统.价值分类记忆与价值系统 import 
 from 行为与计划模块.行为与计划模块 import ACT,update_v,change_acthablist,choose_act,update_psav_memory,act_detail,output_act
 from 记忆模块.记忆模块 import add_memorylist
 from 世界模型.世界模型 import update_transmatrix,predict_next_state_chance
-from 全局神经工作空间.全局神经工作空间 import 初始化界面,extend_senlist,open_memory_window,open_settings_window
+from 全局神经工作空间.全局神经工作空间 import 初始化界面,extend_senlist,open_memory_window
 from 记忆管理.记忆管理 import export_memory,AUTO_SAVE_NAME
 
 #语言模块
@@ -24,9 +24,11 @@ from 语言模块.语言模块 import use_dictionary,update_dictionary,generate_
 #update_word_trans_matrix(sentence,word_trans_matrix,dictionary)
 
 
-#设置：模式与参数都在界面里选（替代原来的命令行询问）
+#设置与导入：模式、参数和记忆版本在同一个界面里选
 初始化界面()
-if not open_settings_window():
+open_memory_window("导入", with_settings=True)
+if 公共状态.current_memory is None:
+    print("未导入记忆，程序退出。")
     公共状态.root.destroy()
     raise SystemExit
 
@@ -55,13 +57,6 @@ elif 公共状态.mode=="3":
     公共状态.v_acthab_threshold=1
     公共状态.v_adjustact_threshold=-1
 #mode=="0"（自定义）：各项参数已由设置窗口写入公共状态
-
-#同步（先建界面，再在界面里选择要导入的记忆）
-open_memory_window("导入")
-if 公共状态.current_memory is None:
-    print("未导入记忆，程序退出。")
-    公共状态.root.destroy()
-    raise SystemExit
 
 #加载CNN和ART（ART使用同一个记忆，不再单独询问版本号）
 加载知觉模型(公共状态.current_memory)
