@@ -63,16 +63,16 @@ def default_path(spec, memory):
 
 def _read_lines(path):
     with open(path, "r", encoding="utf-8-sig") as file:
-        return [line.strip() for line in file]
+        return [hang.strip() for hang in file]
 
 
 def _count_nonempty(path):
-    return sum(1 for line in _read_lines(path) if line)
+    return sum(1 for hang in _read_lines(path) if hang)
 
 
 def _art_shape(path):
     with open(path, "r", encoding="utf-8-sig") as file:
-        rows = [line for line in file if line.strip()]
+        rows = [hang for hang in file if hang.strip()]
     if not rows:
         return 0, 0
     columns = len([field for field in rows[0].strip().split(",") if field.strip()])
@@ -180,16 +180,16 @@ def _to_int(field):
 
 def _parse_emotion(path):
     items, bad_lines = [], []
-    for line_no, line in enumerate(_read_lines(path), 1):
-        if not line:
+    for line_no, hang in enumerate(_read_lines(path), 1):
+        if not hang:
             continue
-        parts = line.split("；")
+        parts = hang.split("；")
         if len(parts) != 2:
-            bad_lines.append((line_no, line, "应为 2 段，实际 %d 段" % len(parts)))
+            bad_lines.append((line_no, hang, "应为 2 段，实际 %d 段" % len(parts)))
             continue
         strength = _to_number(parts[1])
         if strength is None:
-            bad_lines.append((line_no, line, "情绪强度不是数字"))
+            bad_lines.append((line_no, hang, "情绪强度不是数字"))
             continue
         items.append([_concept_list(parts[0]), int(strength) if strength == int(strength) else strength])
     return items, bad_lines
@@ -202,27 +202,27 @@ def _parse_action_space(path):
 def _parse_three_columns(path):
     """行为习惯、自传体记忆：概念；概念；数值"""
     items, bad_lines = [], []
-    for line_no, line in enumerate(_read_lines(path), 1):
-        if not line:
+    for line_no, hang in enumerate(_read_lines(path), 1):
+        if not hang:
             continue
-        parts = line.split("；")
+        parts = hang.split("；")
         if len(parts) != 3:
-            bad_lines.append((line_no, line, "应为 3 段，实际 %d 段" % len(parts)))
+            bad_lines.append((line_no, hang, "应为 3 段，实际 %d 段" % len(parts)))
             continue
-        value = _to_number(parts[2])
-        if value is None:
-            bad_lines.append((line_no, line, "价值不是数字"))
+        v = _to_number(parts[2])
+        if v is None:
+            bad_lines.append((line_no, hang, "价值不是数字"))
             continue
-        items.append([_concept_list(parts[0]), _concept_list(parts[1]), value])
+        items.append([_concept_list(parts[0]), _concept_list(parts[1]), v])
     return items, bad_lines
 
 
 def _parse_transition(path):
     items, bad_lines = [], []
-    for line_no, line in enumerate(_read_lines(path), 1):
-        if not line:
+    for line_no, hang in enumerate(_read_lines(path), 1):
+        if not hang:
             continue
-        parts = line.split("；")
+        parts = hang.split("；")
         transition = [_concept_list(parts[0])]
         error = None
         for successor_field in parts[1:]:
@@ -230,14 +230,14 @@ def _parse_transition(path):
             if len(sub_parts) != 3:
                 error = "转移应为 3 段，实际 %d 段" % len(sub_parts)
                 break
-            probability = _to_number(sub_parts[1])
+            chance = _to_number(sub_parts[1])
             times = _to_int(sub_parts[2])
-            if probability is None or times is None:
+            if chance is None or times is None:
                 error = "转移的概率或次数不是数字"
                 break
-            transition.append([_concept_list(sub_parts[0]), probability, times])
+            transition.append([_concept_list(sub_parts[0]), chance, times])
         if error:
-            bad_lines.append((line_no, line, error))
+            bad_lines.append((line_no, hang, error))
             continue
         items.append(transition)
     return items, bad_lines
@@ -245,16 +245,16 @@ def _parse_transition(path):
 
 def _parse_dictionary(path):
     items, bad_lines = [], []
-    for line_no, line in enumerate(_read_lines(path), 1):
-        if not line:
+    for line_no, hang in enumerate(_read_lines(path), 1):
+        if not hang:
             continue
-        parts = line.split("；")
+        parts = hang.split("；")
         if len(parts) != 3:
-            bad_lines.append((line_no, line, "应为 3 段，实际 %d 段" % len(parts)))
+            bad_lines.append((line_no, hang, "应为 3 段，实际 %d 段" % len(parts)))
             continue
         weight = _to_number(parts[2])
         if weight is None:
-            bad_lines.append((line_no, line, "权重不是数字"))
+            bad_lines.append((line_no, hang, "权重不是数字"))
             continue
         items.append([parts[0], parts[1], weight])
     return items, bad_lines
@@ -299,18 +299,18 @@ def _serialize_action_space(items):
 
 
 def _serialize_three_columns(items):
-    return "".join(_concept_field(first) + "；" + _concept_field(second) + "；" + _number_text(value) + "\n"
-                   for first, second, value in items)
+    return "".join(_concept_field(first) + "；" + _concept_field(second) + "；" + _number_text(v) + "\n"
+                   for first, second, v in items)
 
 
 def _serialize_transition(items):
-    output = ""
+    content = ""
     for transition in items:
         line = _concept_field(transition[0])
         for successor in transition[1:]:
             line += "；" + _concept_field(successor[0]) + "、" + _number_text(successor[1]) + "、" + _number_text(successor[2])
-        output += line + "\n"
-    return output
+        content += line + "\n"
+    return content
 
 
 def _serialize_dictionary(items):
