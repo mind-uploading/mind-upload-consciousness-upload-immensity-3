@@ -205,8 +205,8 @@ def extend_senlist():
 class 记忆包窗口:
     """一个窗口两种模式：启动时导入、运行中导出。
     两种模式不能在这个窗口里直接切换：导入会替换内存、导出会写盘，时机不同。
-    “一键模式”= 只填一个版本号，9 行文件路径自动拼出；
-    “逐文件模式”= 在同一张文件明细表里单独指定某几行的路径。"""
+    “一键模式”= 只填一个版本号，9 类文件路径自动拼出（默认）；
+    “逐文件导入”= 勾选后每个类型行右侧出现“选择文件…”，单独指定该类型读哪个文件。"""
 
     def __init__(self, 父窗口, 模式):
         self.父窗口 = 父窗口
@@ -266,23 +266,54 @@ class 记忆包窗口:
         self.提示标签 = Label(self.窗口, textvariable=self.状态, fg="#0a58ca", anchor="w")
         self.提示标签.pack(fill=X, padx=12)
 
-        Label(self.窗口, text="这一包的 9 类文件").pack(anchor=W, padx=12, pady=(10, 2))
-        明细框 = Frame(self.窗口)
-        明细框.pack(fill=BOTH, expand=True, padx=12)
-        self.明细表 = ttk.Treeview(明细框, columns=("类型", "条数", "状态"),
-                                  show="headings", height=10)
-        for 名称, 宽, 对齐 in (("类型", 220, "w"), ("条数", 110, "center"), ("状态", 460, "w")):
-            self.明细表.heading(名称, text=名称)
-            self.明细表.column(名称, width=宽, anchor=对齐)
-        滚动2 = Scrollbar(明细框, orient=VERTICAL, command=self.明细表.yview)
-        self.明细表.configure(yscrollcommand=滚动2.set)
-        self.明细表.pack(side=LEFT, fill=BOTH, expand=True)
-        滚动2.pack(side=RIGHT, fill=Y)
+        Label(self.窗口, text="这一包的 9 类文件").pack(anchor=W, padx=12, pady=(10, 0))
+
+        self.逐文件 = IntVar(value=0)
+        选项行 = Frame(self.窗口)
+        选项行.pack(fill=X, padx=12, pady=(2, 4))
+        if self.模式 == "导入":
+            #默认一键导入：9 类文件全部按版本号自动拼路径；勾选后才逐行单独指定
+            Checkbutton(选项行, text="逐文件导入（勾选后可单独指定每个类型的文件）",
+                        variable=self.逐文件,
+                        command=self._切换逐文件).pack(side=LEFT)
+            self.恢复全部按钮 = Button(选项行, text="全部恢复自动", state=DISABLED,
+                                      command=self._恢复全部)
+            self.恢复全部按钮.pack(side=LEFT, padx=10)
+        else:
+            Label(选项行, text="默认一键导出 9 类文件", fg="#999").pack(side=LEFT)
+
+        表框 = Frame(self.窗口)
+        表框.pack(fill=BOTH, expand=True, padx=12)
+        表头 = Frame(表框)
+        表头.pack(fill=X)
+        Label(表头, text="类型", width=26, anchor="w",
+              font=("Microsoft YaHei", 9, "bold")).grid(row=0, column=0, sticky="w")
+        Label(表头, text="条数", width=10, anchor="center",
+              font=("Microsoft YaHei", 9, "bold")).grid(row=0, column=1)
+        Label(表头, text="状态", anchor="w",
+              font=("Microsoft YaHei", 9, "bold")).grid(row=0, column=2, sticky="w")
+
+        行区域 = Frame(表框)
+        行区域.pack(fill=BOTH, expand=True)
+        行区域.columnconfigure(2, weight=1)
+        self.明细行 = {}
+        for 序号, 规格 in enumerate(记忆管理.类型规格):
+            键 = 规格["键"]
+            类型标签 = Label(行区域, text=规格["名称"], width=26, anchor="w")
+            条数标签 = Label(行区域, text="—", width=10, anchor="center")
+            状态标签 = Label(行区域, text="", anchor="w")
+            按钮 = Button(行区域, text="选择文件…", width=11,
+                         command=lambda 键=键: self._选择文件(键))
+            类型标签.grid(row=序号, column=0, sticky="w", pady=2)
+            条数标签.grid(row=序号, column=1, pady=2)
+            状态标签.grid(row=序号, column=2, sticky="we", padx=(4, 6), pady=2)
+            按钮.grid(row=序号, column=3, padx=(0, 4), pady=2)
+            按钮.grid_remove()
+            self.明细行[键] = {"类型": 类型标签, "条数": 条数标签,
+                             "状态": 状态标签, "按钮": 按钮}
 
         按钮行 = Frame(self.窗口)
         按钮行.pack(fill=X, padx=12, pady=10)
-        Button(按钮行, text="单独指定所选行…", command=self._选择文件).pack(side=LEFT)
-        Button(按钮行, text="恢复自动", command=self._恢复自动).pack(side=LEFT, padx=6)
         self.确认按钮 = Button(按钮行, width=12, command=self._确认, state=DISABLED,
                             text=("确认导入" if self.模式 == "导入" else "确认导出"))
         self.确认按钮.pack(side=RIGHT)
@@ -292,6 +323,22 @@ class 记忆包窗口:
         self.版本号.trace_add("write", self._输入变化)
 
     # ---------------- 事件 ----------------
+
+    def _切换逐文件(self):
+        """勾选“逐文件导入”后，每个类型行右侧出现“选择文件…”按钮；
+        取消勾选即回到一键导入，之前单独指定的文件作废。"""
+        显示 = bool(self.逐文件.get())
+        if not 显示:
+            self.覆盖路径.clear()
+        for 行控件 in self.明细行.values():
+            if 显示:
+                行控件["按钮"].grid()
+            else:
+                行控件["按钮"].grid_remove()
+        if hasattr(self, "恢复全部按钮"):
+            self.恢复全部按钮.config(state=NORMAL if self.覆盖路径 else DISABLED)
+        self._刷新明细()
+        self._校验()
 
     def _预填(self):
         if self.模式 == "导入":
@@ -314,30 +361,36 @@ class 记忆包窗口:
         self._校验()
 
     def _刷新明细(self):
-        for 项目 in self.明细表.get_children():
-            self.明细表.delete(项目)
         if self.模式 == "导入":
             包名 = self.包名.get().strip()
             if not 包名:
+                for 行控件 in self.明细行.values():
+                    行控件["条数"].config(text="—")
+                    行控件["状态"].config(text="")
                 return
             for 行 in 记忆管理.包内文件(包名, self.覆盖路径):
-                if 行["存在"]:
-                    状态 = "存在"
+                行控件 = self.明细行[行["键"]]
+                行控件["条数"].config(
+                    text="—" if 行["条数"] is None else str(行["条数"]))
+                if 行["键"] in self.覆盖路径:
+                    状态 = "手动指定：%s" % os.path.basename(self.覆盖路径[行["键"]])
+                elif 行["存在"]:
+                    状态 = "自动：%s" % os.path.basename(行["路径"])
                 else:
                     状态 = "缺失（ART置空）" if 行["键"] == "ART" else "缺失（按空表）"
-                if 行["键"] in self.覆盖路径:
-                    状态 += "（手动指定）"
-                条数文本 = "—" if 行["条数"] is None else str(行["条数"])
-                self.明细表.insert("", END, iid=行["键"],
-                                 values=(行["名称"], 条数文本, 状态))
+                行控件["状态"].config(text=状态)
         else:
             包名 = self.包名.get().strip() or "未命名"
             for 行 in 记忆管理.导出预览(包名, self.覆盖路径):
-                状态 = 行["状态"]
+                行控件 = self.明细行[行["键"]]
+                行控件["条数"].config(text=str(行["条数"]))
                 if 行["键"] in self.覆盖路径:
-                    状态 += "（手动指定）"
-                self.明细表.insert("", END, iid=行["键"],
-                                 values=(行["名称"], str(行["条数"]), 状态))
+                    状态 = "手动指定：%s" % os.path.basename(self.覆盖路径[行["键"]])
+                else:
+                    状态 = 行["状态"]
+                行控件["状态"].config(text=状态)
+        if hasattr(self, "恢复全部按钮"):
+            self.恢复全部按钮.config(state=NORMAL if self.覆盖路径 else DISABLED)
 
     def _校验(self):
         有效 = False
@@ -457,41 +510,25 @@ class 记忆包窗口:
         self._刷新明细()
         self._校验()
 
-    def _选择文件(self):
-        选中 = self.明细表.selection()
-        if not 选中:
-            messagebox.showinfo("提示", "请先在下面的文件明细里选中一行。", parent=self.窗口)
-            return
-        键 = 选中[0]
+    def _选择文件(self, 键):
+        """逐文件导入：为某个类型单独挑选文件（其余类型仍按版本号自动拼）"""
         规格 = [项 for 项 in 记忆管理.类型规格 if 项["键"] == 键][0]
         当前 = self.覆盖路径.get(键) or 记忆管理.默认路径(规格, self.包名.get().strip() or "未命名")
         初始目录 = os.path.dirname(os.path.abspath(当前))
         if not os.path.isdir(初始目录):
             初始目录 = os.getcwd()
-        if self.模式 == "导入":
-            路径 = filedialog.askopenfilename(
-                parent=self.窗口, title="选择「%s」文件" % 规格["名称"],
-                initialdir=初始目录,
-                filetypes=[("文本文件", "*.txt"), ("CSV文件", "*.csv"), ("所有文件", "*.*")])
-        else:
-            路径 = filedialog.asksaveasfilename(
-                parent=self.窗口, title="「%s」导出到" % 规格["名称"],
-                initialdir=初始目录, initialfile=os.path.basename(当前),
-                defaultextension=规格["后缀"])
+        路径 = filedialog.askopenfilename(
+            parent=self.窗口, title="选择「%s」文件" % 规格["名称"],
+            initialdir=初始目录,
+            filetypes=[("文本文件", "*.txt"), ("CSV文件", "*.csv"), ("所有文件", "*.*")])
         if not 路径:
             return
         self.覆盖路径[键] = os.path.normpath(路径)
         self._刷新明细()
         self._校验()
 
-    def _恢复自动(self):
-        选中 = self.明细表.selection()
-        if not 选中:
-            messagebox.showinfo("提示", "请先在下面的文件明细里选中一行。", parent=self.窗口)
-            return
-        键 = 选中[0]
-        if 键 in self.覆盖路径:
-            del self.覆盖路径[键]
+    def _恢复全部(self):
+        self.覆盖路径.clear()
         self._刷新明细()
         self._校验()
 
