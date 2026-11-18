@@ -272,7 +272,7 @@ class 记忆包窗口:
         self.版本号框 = Entry(查询行, textvariable=self.版本号, width=16)
         self.版本号框.pack(side=LEFT, padx=(2, 10))
         Button(查询行, text="查找", width=6, command=self._查找).pack(side=LEFT)
-        Label(查询行, text="（只需输入一个版本号；也可在下方列表双击已有的记忆包）",
+        Label(查询行, text="（只需输入一个版本号，如 100、研究者_v1；也可在下方列表双击已有的记忆包）",
               fg="#999").pack(side=LEFT, padx=8)
         self.版本号框.bind("<Return>", lambda 事件: self._查找())
 
@@ -342,7 +342,7 @@ class 记忆包窗口:
             if 公共状态.当前记忆包:
                 self.包名.set(公共状态.当前记忆包)
             return
-        self.版本号.set(记忆管理.建议版本号())
+        self.版本号.set(记忆管理.建议版本号(公共状态.当前记忆包))
 
     def _输入变化(self, *参数):
         if self._静默:
