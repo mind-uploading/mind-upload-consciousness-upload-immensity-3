@@ -214,7 +214,7 @@ class PackageWindow:
         self._silent = False
 
         self.win = Toplevel(parent)
-        self.win.title("导入记忆" if mode == "导入" else "导出记忆")
+        self.win.title("导入记忆包" if mode == "导入" else "导出记忆包")
         self.win.geometry("1120x740")
         self.win.transient(parent)
         self.win.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -248,9 +248,9 @@ class PackageWindow:
 
         header = Frame(self.win)
         header.pack(fill=X, padx=12, pady=(12, 2))
-        Label(header, text="导入记忆" if is_import else "导出记忆",
+        Label(header, text="导入记忆包" if is_import else "导出记忆包",
               font=("Microsoft YaHei", 15, "bold")).pack(side=LEFT)
-        Label(header, text="  选择版本，或直接输入版本号" if is_import else "  填写新版本号",
+        Label(header, text="  输入要导入的版本号" if is_import else "  输入要导出的版本号",
               fg="#666").pack(side=LEFT)
 
         row = Frame(self.win)
@@ -312,7 +312,7 @@ class PackageWindow:
         buttons = Frame(self.win)
         buttons.pack(fill=X, padx=12, pady=10)
         self.confirm_btn = Button(buttons, width=12, command=self._on_confirm,
-                                  state=DISABLED, text="导入" if is_import else "导出")
+                                  state=DISABLED, text="确认导入" if is_import else "确认导出")
         self.confirm_btn.pack(side=RIGHT)
         Button(buttons, text="退出" if is_import else "关闭", width=8,
                command=self._on_close).pack(side=RIGHT, padx=6)
@@ -379,12 +379,12 @@ class PackageWindow:
             else:
                 total = sum(len(getattr(公共状态, spec["var"], []) or [])
                             for spec in 记忆管理.TYPE_SPECS if spec["var"])
-                tip = "导出：%s（%d 条）" % (package, total)
+                tip = "要导出的版本号：%s（共 %d 条）" % (package, total)
                 valid = True
         else:
             package = self.package.get().strip()
             if not package:
-                tip = "请选择或输入版本号"
+                tip = "请输入版本号"
             else:
                 found = 0
                 for spec in 记忆管理.TYPE_SPECS:
@@ -392,9 +392,9 @@ class PackageWindow:
                     if os.path.exists(path):
                         found += 1
                 if found == 0:
-                    tip = "未找到任何文件"
+                    tip = "没有找到该版本号的文件"
                 else:
-                    tip = "找到 %d/9 类文件" % found
+                    tip = "已找到 %d/9 类文件" % found
                     valid = True
         self.confirm_btn.config(state=NORMAL if valid else DISABLED)
         self.status.set(tip)
@@ -413,7 +413,7 @@ class PackageWindow:
 
     def _do_import(self):
         package = self.package.get().strip()
-        skip_bad = False
+        skip_bad_lines = False
         ok, report, errors = 记忆管理.import_package(
             package, self.overrides, skip_bad_lines=False, commit=False)
         if not ok and errors:
@@ -426,7 +426,7 @@ class PackageWindow:
                     "存在无法解析的行",
                     "\n".join(lines) + "\n\n跳过这些行继续导入？", parent=self.win):
                 return
-            skip_bad = True
+            skip_bad_lines = True
             ok, report, errors = 记忆管理.import_package(
                 package, self.overrides, skip_bad_lines=True, commit=False)
             if not ok:
@@ -435,7 +435,7 @@ class PackageWindow:
 
         summary = "、".join("%s %s" % (item["name"], item["count"]) for item in report)
         missing = [item["name"] for item in report if item["status"].startswith("缺失")]
-        text = "从「%s」导入：\n\n%s\n\n当前内容会被替换。" % (package, summary)
+        text = "从记忆包「%s」导入：\n\n%s\n\n当前内容会被替换。" % (package, summary)
         if missing:
             text += "\n\n没有文件的类型按空表导入：" + "、".join(missing)
         autobiographic = next((item["count"] for item in report if item["key"] == "自传体"), 0)
@@ -448,11 +448,11 @@ class PackageWindow:
             return
 
         ok, report, errors = 记忆管理.import_package(
-            package, self.overrides, skip_bad_lines=skip_bad, commit=True)
+            package, self.overrides, skip_bad_lines=skip_bad_lines, commit=True)
         if not ok:
             self._show_errors(errors)
             return
-        messagebox.showinfo("导入完成", "已导入「%s」。" % package, parent=self.win)
+        messagebox.showinfo("导入成功——————————————", "记忆包「%s」已导入。" % package, parent=self.win)
         self.win.destroy()
 
     def _do_export(self):
@@ -479,10 +479,10 @@ class PackageWindow:
         summary = "、".join(
             "%s %s" % (item["name"], "（跳过）" if str(item["count"]) == "—" else "%s 条" % item["count"])
             for item in report)
-        text = "已导出「%s」：\n\n%s" % (package, summary)
+        text = "记忆包「%s」已导出：\n\n%s" % (package, summary)
         if skipped:
             text += "\n\n未写入：" + "、".join(skipped)
-        messagebox.showinfo("导出完成", text, parent=self.win)
+        messagebox.showinfo("导出成功——————————————", text, parent=self.win)
         self._refresh_versions()
         self._refresh_detail()
         self._validate()
@@ -531,10 +531,10 @@ class PackageWindow:
     def _on_close(self):
         if self.mode == "导入":
             if 公共状态.当前记忆包 is None:
-                if not messagebox.askyesno("退出程序", "还没有导入记忆，关闭后程序退出。\n\n确定吗？",
+                if not messagebox.askyesno("退出程序", "还没有导入记忆包，关闭后程序将退出。\n\n确定吗？",
                                            parent=self.win):
                     return
-            elif not messagebox.askyesno("关闭", "关闭窗口，进入主程序？", parent=self.win):
+            elif not messagebox.askyesno("关闭", "关闭记忆包窗口，进入主程序？", parent=self.win):
                 return
         self.win.destroy()
 
