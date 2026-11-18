@@ -13,8 +13,8 @@ from 价值分类记忆与价值系统.价值分类记忆与价值系统 import 
 from 行为与计划模块.行为与计划模块 import ACT,update_v,change_acthablist,choose_act,update_psav_memory,act_detail,output_act
 from 记忆模块.记忆模块 import add_memorylist
 from 世界模型.世界模型 import update_transmatrix,predict_next_state_chance
-from 全局神经工作空间.全局神经工作空间 import 初始化界面,extend_senlist,open_package_window
-from 记忆管理.记忆管理 import export_package
+from 全局神经工作空间.全局神经工作空间 import 初始化界面,extend_senlist,open_memory_window
+from 记忆管理.记忆管理 import export_memory
 
 #语言模块
 from 语言模块.语言模块 import use_dictionary,update_dictionary,generate_sentence,update_word_trans_matrix
@@ -91,18 +91,18 @@ print("设置完成------------------")
 #同步
 print("请进行同步--------------")
 
-#先建界面，再在界面里选择要导入的记忆包（不再用命令行逐个询问版本号）
+#先建界面，再在界面里选择要导入的记忆（不再用命令行逐个询问版本号）
 初始化界面()
 
 #同步心智内容（情绪习惯列表/行为空间/行为习惯列表/自传体记忆/状态转移概率矩阵/词典/词转移概率矩阵/ART）
-open_package_window("导入")
-if 公共状态.当前记忆包 is None:
-    print("未导入记忆包，程序退出。")
+open_memory_window("导入")
+if 公共状态.current_memory is None:
+    print("未导入记忆，程序退出。")
     公共状态.root.destroy()
     raise SystemExit
 
-#加载CNN和ART（ART使用同一个记忆包名，不再单独询问版本号）
-加载知觉模型(公共状态.当前记忆包)
+#加载CNN和ART（ART使用同一个记忆，不再单独询问版本号）
+加载知觉模型(公共状态.current_memory)
 
 #初始化
 #（psenlist/pactlist/senlist/actlist/want_learn_list/hapsum/sadsum/vsum/predict_state_chance/predict_max_state/predict_max_chance/act_detail_list/updatesom/attentive_time_step_count/psav_memory/psav_now/introcontent/inputsentence/learn_new_word/generate_sent/nl_output_buffer的初始值见 公共状态.py）
@@ -341,11 +341,11 @@ while True:
     公共状态.psenlist=copy.deepcopy(公共状态.senlist)
     公共状态.pactlist=copy.deepcopy(公共状态.actlist)
 
-    #若未进入不可变模式且勾选了“每回合自动保存”，本回合结束后写回当前记忆包
-    if 公共状态.mode!="0" and 公共状态.varcb自动保存 is not None and 公共状态.varcb自动保存.get()==1 and 公共状态.当前记忆包:
-        成功,报告,错误=export_package(公共状态.当前记忆包)
+    #若未进入不可变模式且勾选了“每回合自动保存”，本回合结束后写回当前记忆
+    if 公共状态.mode!="0" and 公共状态.varcb_autosave is not None and 公共状态.varcb_autosave.get()==1 and 公共状态.current_memory:
+        成功,报告,错误=export_memory(公共状态.current_memory)
         if 成功:
-            print("已自动保存到记忆包：",公共状态.当前记忆包)
+            print("已自动保存到记忆：",公共状态.current_memory)
         else:
             print("自动保存失败：",错误)
 

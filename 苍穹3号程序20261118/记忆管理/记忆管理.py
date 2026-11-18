@@ -1,4 +1,4 @@
-#记忆管理（记忆包的扫描、导入、导出；本模块不弹任何命令行输入，交互全部交给界面）
+#记忆管理（记忆的扫描、导入、导出；本模块不弹任何命令行输入，交互全部交给界面）
 import os
 import re
 
@@ -11,7 +11,7 @@ DATA_ROOT = "意识数据"
 #  key：内部标识
 #  name：界面显示名
 #  dir：意识数据下的子目录
-#  prefix/suffix：文件名 = prefix + 包名 + suffix
+#  prefix/suffix：文件名 = prefix + 版本号 + suffix
 #  var：对应 公共状态 里的变量（ART 单独处理）
 TYPE_SPECS = [
     {"key": "喜",       "name": "喜习惯列表",      "dir": os.path.join("情绪习惯列表", "喜习惯列表"), "prefix": "喜习惯列表",      "suffix": ".txt", "var": "haphablist"},
@@ -25,13 +25,13 @@ TYPE_SPECS = [
     {"key": "ART",      "name": "ART原型",         "dir": "ART",              "prefix": "ART",             "suffix": ".csv", "var": None},
 ]
 
-# ---------------- 包名 ----------------
+# ---------------- 版本号 ----------------
 
 ILLEGAL_CHARS = set('\\/:*?"<>|')
 
 
-def normalize_package(version):
-    """版本号（文件名里“前缀”和扩展名之间的部分）→ 包名；不合法时返回 (None, 原因)。
+def normalize_version(version):
+    """版本号（文件名里“前缀”和扩展名之间的部分）→ 版本号；不合法时返回 (None, 原因)。
     沿用原有意识数据的命名习惯：100、研究者_v1、螺旋藻v2_2 都可以。"""
     version = (version or "").strip()
     if not version:
@@ -42,23 +42,23 @@ def normalize_package(version):
     return version, ""
 
 
-def suggest_version(current_package=None):
-    """导出界面预填：当前包名下一位版本号（如 研究者_v1 → 研究者_v2、103 → 104）"""
-    if current_package:
-        matched = re.match(r"^(.*?)(\d+)$", current_package)
+def suggest_version(current_memory=None):
+    """导出界面预填：当前版本号的下一位版本号（如 研究者_v1 → 研究者_v2、103 → 104）"""
+    if current_memory:
+        matched = re.match(r"^(.*?)(\d+)$", current_memory)
         if matched:
             return matched.group(1) + str(int(matched.group(2)) + 1)
     largest = 0
-    for package in list_packages():
-        if package.isascii() and package.isdigit():
-            largest = max(largest, int(package))
+    for memory in list_memories():
+        if memory.isascii() and memory.isdigit():
+            largest = max(largest, int(memory))
     return str(largest + 1)
 
 
 # ---------------- 路径与统计 ----------------
 
-def default_path(spec, package):
-    return os.path.join(DATA_ROOT, spec["dir"], spec["prefix"] + package + spec["suffix"])
+def default_path(spec, memory):
+    return os.path.join(DATA_ROOT, spec["dir"], spec["prefix"] + memory + spec["suffix"])
 
 
 def _read_lines(path):
@@ -89,8 +89,8 @@ def count_rows(path, key):
     return _count_nonempty(path)
 
 
-def list_packages():
-    """扫描 意识数据，返回 {包名: {"paths": {key: 路径}, "mtime": 最后修改时间}}"""
+def list_memories():
+    """扫描 意识数据，返回 {版本号: {"paths": {key: 路径}, "mtime": 最后修改时间}}"""
     result = {}
     for spec in TYPE_SPECS:
         folder = os.path.join(DATA_ROOT, spec["dir"])
@@ -99,11 +99,11 @@ def list_packages():
         for filename in os.listdir(folder):
             if not (filename.startswith(spec["prefix"]) and filename.endswith(spec["suffix"])):
                 continue
-            package = filename[len(spec["prefix"]):len(filename) - len(spec["suffix"])]
-            if not package:
+            memory = filename[len(spec["prefix"]):len(filename) - len(spec["suffix"])]
+            if not memory:
                 continue
             path = os.path.join(folder, filename)
-            entry = result.setdefault(package, {"paths": {}, "mtime": 0.0})
+            entry = result.setdefault(memory, {"paths": {}, "mtime": 0.0})
             entry["paths"][spec["key"]] = path
             try:
                 entry["mtime"] = max(entry["mtime"], os.path.getmtime(path))
@@ -112,12 +112,12 @@ def list_packages():
     return result
 
 
-def package_files(package, overrides=None):
+def memory_files(memory, overrides=None):
     """导入用：逐类列出路径、是否存在、文件里的条数"""
     overrides = overrides or {}
     result = []
     for spec in TYPE_SPECS:
-        path = overrides.get(spec["key"]) or default_path(spec, package)
+        path = overrides.get(spec["key"]) or default_path(spec, memory)
         exists = os.path.exists(path)
         result.append({
             "key": spec["key"],
@@ -129,13 +129,13 @@ def package_files(package, overrides=None):
     return result
 
 
-def export_preview(package, overrides=None):
+def export_preview(memory, overrides=None):
     """导出用：逐类列出目标路径、内存里条数、将新建还是覆盖"""
     overrides = overrides or {}
     result = []
     for spec in TYPE_SPECS:
         key = spec["key"]
-        path = overrides.get(key) or default_path(spec, package)
+        path = overrides.get(key) or default_path(spec, memory)
         exists = os.path.exists(path)
         if key == "ART":
             if 公共状态.art_model is None:
@@ -341,8 +341,8 @@ SERIALIZERS = {
 
 # ---------------- 导入 / 导出 ----------------
 
-def import_package(package, overrides=None, skip_bad_lines=False, commit=True):
-    """读取一个记忆包。
+def import_memory(memory, overrides=None, skip_bad_lines=False, commit=True):
+    """读取一个记忆。
     commit=True 且没有任何坏行时，才写入 公共状态（保证不会导入半个包）。
     返回 (成功, 报告, 错误列表)"""
     overrides = overrides or {}
@@ -354,7 +354,7 @@ def import_package(package, overrides=None, skip_bad_lines=False, commit=True):
         key = spec["key"]
         if key == "ART":
             continue
-        path = overrides.get(key) or default_path(spec, package)
+        path = overrides.get(key) or default_path(spec, memory)
         if not os.path.exists(path):
             staged[spec["var"]] = []
             report.append({"key": key, "name": spec["name"], "path": path,
@@ -381,15 +381,15 @@ def import_package(package, overrides=None, skip_bad_lines=False, commit=True):
     for var, items in staged.items():
         setattr(公共状态, var, items)
 
-    公共状态.当前记忆包 = package
+    公共状态.current_memory = memory
     #ART 由 知觉分类模块 按这个路径加载
-    公共状态.art原型路径 = overrides.get("ART") or default_path(
-        [spec for spec in TYPE_SPECS if spec["key"] == "ART"][0], package)
+    公共状态.art_path = overrides.get("ART") or default_path(
+        [spec for spec in TYPE_SPECS if spec["key"] == "ART"][0], memory)
     return True, report, []
 
 
-def export_package(package, overrides=None):
-    """把内存里的 9 类数据写成一个记忆包（两阶段写出，避免半个包）。
+def export_memory(memory, overrides=None):
+    """把内存里的 9 类数据写成一个记忆（两阶段写出，避免半个包）。
     返回 (成功, 报告, 错误信息)"""
     overrides = overrides or {}
     pending = []
@@ -397,7 +397,7 @@ def export_package(package, overrides=None):
 
     for spec in TYPE_SPECS:
         key = spec["key"]
-        path = overrides.get(key) or default_path(spec, package)
+        path = overrides.get(key) or default_path(spec, memory)
         if key == "ART":
             if 公共状态.art_model is None:
                 report.append({"key": key, "name": spec["name"], "path": path,
@@ -440,5 +440,5 @@ def export_package(package, overrides=None):
     for temp, path in temp_files:
         os.replace(temp, path)
 
-    公共状态.当前记忆包 = package
+    公共状态.current_memory = memory
     return True, report, ""

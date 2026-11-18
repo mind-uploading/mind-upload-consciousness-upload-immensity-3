@@ -70,17 +70,17 @@ class ART:
 
 
 #加载CNN和ART
-def 加载知觉模型(art包名=None):
+def 加载知觉模型(art_version=None):
     #加载CNN
     公共状态.base_model = load_model('知觉分类模块/CNN/vgg16_base_model.h5')
 
-    #加载ART（版本号由记忆包决定，不再单独询问）
-    artwjlj=公共状态.art原型路径
+    #加载ART（版本号由记忆决定，不再单独询问）
+    artwjlj=公共状态.art_path
     if artwjlj is None:
-        if art包名 is None:
-            art包名=公共状态.当前记忆包
-        if art包名:
-            artwjlj=os.path.join("意识数据","ART","ART"+art包名+".csv")
+        if art_version is None:
+            art_version=公共状态.current_memory
+        if art_version:
+            artwjlj=os.path.join("意识数据","ART","ART"+art_version+".csv")
 
     if artwjlj is None or not os.path.exists(artwjlj):
         print("未找到ART原型文件，ART模型置空（仅影响视觉模式）：",artwjlj)
