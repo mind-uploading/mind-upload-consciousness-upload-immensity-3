@@ -1,4 +1,5 @@
 #知觉分类模块
+import os
 import time
 import PIL.Image
 import numpy as np
@@ -69,24 +70,36 @@ class ART:
 
 
 #加载CNN和ART
-def 加载知觉模型():
+def 加载知觉模型(art_version=None):
     #加载CNN
     公共状态.base_model = load_model('知觉分类模块/CNN/vgg16_base_model.h5')
-    #加载ART
-    artbbh=input("输入要同步的ART的版本号：")
-    artwjlj="意识数据/ART/ART"+artbbh+".csv"
 
-    # 读取CSV文件
-    prototypes_df = pd.read_csv(artwjlj, header=None)
+    #加载ART（版本号由记忆决定，不再单独询问）
+    artwjlj=公共状态.art_path
+    if artwjlj is None:
+        if art_version is None:
+            art_version=公共状态.current_memory
+        if art_version:
+            artwjlj=os.path.join("意识数据","ART","ART"+art_version+".csv")
 
-    # 将DataFrame转换为numpy数组
-    prototypes = prototypes_df.to_numpy()
+    if artwjlj is None or not os.path.exists(artwjlj):
+        print("未找到ART原型文件，ART模型置空（仅影响视觉模式）：",artwjlj)
+        公共状态.art_model=None
+        return
 
-    # 打印numpy数组
-    print(prototypes)
+    # 读取CSV文件（逗号分隔的浮点数矩阵）
+    try:
+        prototypes=np.loadtxt(artwjlj,delimiter=",")
+    except Exception as 异常:
+        print("ART原型文件读取失败，ART模型置空（仅影响视觉模式）：",artwjlj,异常)
+        公共状态.art_model=None
+        return
+    if prototypes.ndim==1:
+        prototypes=prototypes.reshape(1,-1)
 
-    # 创建ART实例
-    公共状态.art_model = ART(num_categories=100, vigilance=0.5, learning_rate=0,prototypes=prototypes)
+    # 创建ART实例（类别数由原型矩阵的行数决定）
+    公共状态.art_model = ART(num_categories=prototypes.shape[0], vigilance=0.5, learning_rate=0,prototypes=prototypes)
+    print("ART原型：",prototypes.shape)
 
 
 #初始化摄像头
@@ -209,15 +222,18 @@ def vision(senlist):
 
         #通过ART将CNN模型输出的特征聚类为类别
         #CNN输出的特征会激活ART网络中序号为i的神经元，该神经元会发放类别i
-        winning_neurons_index = 公共状态.art_model.match(features)  # 获取获胜神经元在ART网络中的序号
-        if winning_neurons_index!=None:
-            winning_neurons_index_str=str(winning_neurons_index)
+        if 公共状态.art_model is None:
+            category="类别None"
         else:
-            winning_neurons_index_str="None"
-        category="类别"+winning_neurons_index_str
+            winning_neurons_index = 公共状态.art_model.match(features)  # 获取获胜神经元在ART网络中的序号
+            if winning_neurons_index!=None:
+                winning_neurons_index_str=str(winning_neurons_index)
+            else:
+                winning_neurons_index_str="None"
+            category="类别"+winning_neurons_index_str
 
-        #更新ART
-        公共状态.art_model.fit([features])
+            #更新ART
+            公共状态.art_model.fit([features])
 
 
 

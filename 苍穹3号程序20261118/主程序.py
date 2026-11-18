@@ -1,15 +1,20 @@
 #苍穹3号主程序
 import copy
+import os
 import time
 
 import 公共状态
+
+#相对路径（意识数据、CNN/ART模型、界面资源）一律以程序目录为基准，
+#这样从任意目录启动（例如 python 苍穹3号程序20261118/主程序.py）都不会找不到意识数据
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
 from 知觉分类模块.知觉分类模块 import 加载知觉模型,初始化摄像头,clear_senlist,vision,input_senlist
 from 价值分类记忆与价值系统.价值分类记忆与价值系统 import emo
 from 行为与计划模块.行为与计划模块 import ACT,update_v,change_acthablist,choose_act,update_psav_memory,act_detail,output_act
 from 记忆模块.记忆模块 import add_memorylist
 from 世界模型.世界模型 import update_transmatrix,predict_next_state_chance
-from 全局神经工作空间.全局神经工作空间 import 初始化界面,extend_senlist
-from 记忆管理.记忆管理 import 同步记忆,保存记忆
+from 全局神经工作空间.全局神经工作空间 import 初始化界面,extend_senlist,open_memory_window
+from 记忆管理.记忆管理 import export_memory,AUTO_SAVE_NAME
 
 #语言模块
 from 语言模块.语言模块 import use_dictionary,update_dictionary,generate_sentence,update_word_trans_matrix
@@ -19,11 +24,14 @@ from 语言模块.语言模块 import use_dictionary,update_dictionary,generate_
 #update_word_trans_matrix(sentence,word_trans_matrix,dictionary)
 
 
-#设置
-print("请进行设置------------------")
+#设置与导入：模式、参数和记忆版本在同一个界面里选
+初始化界面()
+open_memory_window("导入", with_settings=True)
+if 公共状态.current_memory is None:
+    print("未导入记忆，程序退出。")
+    公共状态.root.destroy()
+    raise SystemExit
 
-#是否进入预设的模式
-公共状态.mode=input("是否进入预设的模式？（不可变模式：1，默认模式：2，自主模式：3，否：0）")
 if 公共状态.mode=="1":
     公共状态.senlist_add_actlist="0"
     公共状态.randforget="0"
@@ -48,58 +56,16 @@ elif 公共状态.mode=="3":
     公共状态.adjust_acthablist="1"
     公共状态.v_acthab_threshold=1
     公共状态.v_adjustact_threshold=-1
-    公共状态.sleeptime=int(input("请输入两个回合之间的睡眠时间（单位：秒）："))
-    公共状态.imgsource=input("请输入图像来源（摄像头：1，截屏（左半边屏幕）：2）：")
-else:
-    #1、将上一回合输出的行为概念加入下一回合的知觉概念列表中
-    公共状态.senlist_add_actlist=input("是否要将上一回合输出的行为概念加入下一回合的知觉概念列表中？（是：1，否：0）")
+#mode=="0"（自定义）：各项参数已由设置窗口写入公共状态
 
-    #2、随机遗忘机制
-    公共状态.randforget=input("是否要激活随机遗忘机制？（是：1，否：0）")
-
-    #3、调整情绪习惯列表
-    公共状态.adjust_hapsadhablist=input("是否允许调整情绪习惯列表？（是：1，否：0）：")
-    if 公共状态.adjust_hapsadhablist=="1":
-        #设定价值分类记忆激活阈值
-        #（一个新概念引发的情绪发放如果超过阈值则该概念被纳入价值分类记忆）
-        print("接下来你将输入价值分类记忆激活阈值（范围0-5，通常为2）\n一个新概念引发的情绪发放如果超过阈值则该概念被纳入价值分类记忆")
-        公共状态.hapsum_mem_threshold=int(input("喜的价值分类记忆激活阈值："))
-
-        公共状态.sadsum_mem_threshold=int(input("哀的价值分类记忆激活阈值："))
-
-
-    #4、调整行为习惯列表
-    公共状态.adjust_acthablist=input("是否允许调整行为习惯列表？（是：1，否：0）：")
-    if 公共状态.adjust_acthablist=="1":
-        #行为固定化阈值v_acthab_threshold
-        #若vsum>=行为固定化阈值v_acthab_threshold，将当前行为模式固定化（存入acthablist中）
-        print("接下来你将输入行为固定化阈值v_acthab_threshold（范围0-5，通常为1）\n若总价值vsum>=行为固定化阈值v_acthab_threshold，将当前行为模式固定化")
-        公共状态.v_acthab_threshold=int(input("行为固定化阈值v_acthab_threshold："))
-
-        #行为调整激活阈值v_adjustact_threshold
-        #若总价值vsum<=行为调整激活阈值v_adjustact_threshold，在当前行为模式基础上进行优化
-        print("接下来你将输入行为调整激活阈值v_adjustact_threshold（范围0-5，通常为2）\n若总价值vsum<=行为调整激活阈值v_adjustact_threshold，在当前行为模式基础上进行优化")
-        公共状态.v_adjustact_threshold=int(input("行为调整激活阈值v_adjustact_threshold："))
-
-print("设置完成------------------")
-
-#同步
-print("请进行同步--------------")
-
-#同步心智内容（情绪习惯列表/行为空间/行为习惯列表/自传体记忆/状态转移概率矩阵/词典/词转移概率矩阵）
-同步记忆()
-
-#加载CNN和ART
-加载知觉模型()
+#加载CNN和ART（ART使用同一个记忆，不再单独询问版本号）
+加载知觉模型(公共状态.current_memory)
 
 #初始化
 #（psenlist/pactlist/senlist/actlist/want_learn_list/hapsum/sadsum/vsum/predict_state_chance/predict_max_state/predict_max_chance/act_detail_list/updatesom/attentive_time_step_count/psav_memory/psav_now/introcontent/inputsentence/learn_new_word/generate_sent/nl_output_buffer的初始值见 公共状态.py）
 
 #摄像头
 初始化摄像头()
-
-#可视化界面初始化
-初始化界面()
 
 
 #控制流
@@ -332,9 +298,14 @@ while True:
     公共状态.psenlist=copy.deepcopy(公共状态.senlist)
     公共状态.pactlist=copy.deepcopy(公共状态.actlist)
 
-    #若未进入不可变模式，询问是否保存当前心智内容
-    if 公共状态.mode!="0":
-        保存记忆()
+    #每回合自动保存（常开）：固定写到记忆「自动保存」，只保留最近一回合，
+    #不写当前导入的版本，避免误覆盖
+    if 公共状态.mode!="0" and 公共状态.current_memory:
+        成功,报告,错误=export_memory(AUTO_SAVE_NAME)
+        if 成功:
+            print("保存到版本号：",AUTO_SAVE_NAME)
+        else:
+            print("自动保存失败：",错误)
 
     #若进入自主模式，睡眠一段时间
     if 公共状态.mode=="3":

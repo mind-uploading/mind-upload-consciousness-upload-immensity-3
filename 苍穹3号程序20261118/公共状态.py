@@ -15,6 +15,9 @@ sleeptime=0
 imgsource="1"
 
 #同步
+current_memory=None#当前使用的记忆（用版本号标识）
+art_path=None#ART原型文件的路径（由记忆决定）
+memory_window=None#当前打开的记忆窗口
 haphablist=[]
 sadhablist=[]
 allact=[]
@@ -84,5 +87,4 @@ varcbcounts1=None
 varcbcounts2=None
 txact_detail_list=None
 txnloutput=None
-varcbbaocun1=None
-varcbbaocun2=None
+varcb_autosave=None

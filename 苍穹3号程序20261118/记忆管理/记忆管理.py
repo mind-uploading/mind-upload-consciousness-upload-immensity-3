@@ -1,308 +1,433 @@
-#记忆管理（心智内容的同步与保存）
-import pandas as pd
+#记忆管理（记忆的扫描、导入、导出；本模块不弹任何命令行输入，交互全部交给界面）
+import os
 
 import 公共状态
 
 
-#同步（从文件加载心智内容）
-def 同步记忆():
-    #同步情绪习惯
-    print("同步情绪习惯列表--------------")
-    公共状态.haphablist=[]
-    hapbbh=input("输入要同步的喜习惯列表的版本号：")
-    hapwjlj="意识数据/情绪习惯列表/喜习惯列表/喜习惯列表"+hapbbh+".txt"#喜习惯列表文件路径
+DATA_ROOT = "意识数据"
 
-    with open(hapwjlj,'r',encoding='utf-8') as hapfile:
-        hang=hapfile.readline().strip()
-        while hang:
+#自动保存固定用这个版本号：每回合覆盖，只保留最近一回合，不会动用户导入的版本
+AUTO_SAVE_NAME = "自动保存"
 
-            senlisthap1=hang.split("；")#引发喜的知觉概念列表（senlist）和该列表引发的喜的水平（hap）之间用“；”连接
-            senlist=senlisthap1[0].split("。")#引发喜的知觉概念列表内部的概念用“。”连接
-            hap=int(senlisthap1[1])
-            #删除切片出的空内容
-            while "" in senlist:
-                senlist.remove("")
+#9 类意识数据的规格
+#  key：内部标识
+#  name：界面显示名
+#  dir：意识数据下的子目录
+#  prefix/suffix：文件名 = prefix + 版本号 + suffix
+#  var：对应 公共状态 里的变量（ART 单独处理）
+TYPE_SPECS = [
+    {"key": "喜",       "name": "喜习惯列表",      "dir": os.path.join("情绪习惯列表", "喜习惯列表"), "prefix": "喜习惯列表",      "suffix": ".txt", "var": "haphablist"},
+    {"key": "哀",       "name": "哀习惯列表",      "dir": os.path.join("情绪习惯列表", "哀习惯列表"), "prefix": "哀习惯列表",      "suffix": ".txt", "var": "sadhablist"},
+    {"key": "行为空间", "name": "行为空间",        "dir": "行为空间",         "prefix": "行为空间",        "suffix": ".txt", "var": "allact"},
+    {"key": "行为习惯", "name": "行为习惯列表",    "dir": "行为习惯列表",     "prefix": "行为习惯列表",    "suffix": ".txt", "var": "acthablist"},
+    {"key": "自传体",   "name": "自传体记忆",      "dir": "自传体记忆",       "prefix": "自传体记忆",      "suffix": ".txt", "var": "memorylist"},
+    {"key": "状态转移", "name": "状态转移概率矩阵", "dir": "状态转移概率矩阵", "prefix": "状态转移概率矩阵", "suffix": ".txt", "var": "transmatrix"},
+    {"key": "词典",     "name": "词典",            "dir": "词典",             "prefix": "词典",            "suffix": ".txt", "var": "dictionary"},
+    {"key": "词转移",   "name": "词转移概率矩阵",  "dir": "词转移概率矩阵",   "prefix": "词转移概率矩阵",   "suffix": ".txt", "var": "word_trans_matrix"},
+    {"key": "ART",      "name": "ART原型",         "dir": "ART",              "prefix": "ART",             "suffix": ".csv", "var": None},
+]
 
-            公共状态.haphablist.append([senlist,hap])
-            hang=hapfile.readline().strip()
+# ---------------- 版本号 ----------------
 
-    公共状态.sadhablist=[]
-    sadbbh=input("输入要同步的哀习惯列表的版本号：")
-    sadwjlj="意识数据/情绪习惯列表/哀习惯列表/哀习惯列表"+sadbbh+".txt"#哀习惯列表文件路径
-
-    with open(sadwjlj,'r',encoding='utf-8') as sadfile:
-        hang=sadfile.readline().strip()
-        while hang:
-
-            senlistsad1=hang.split("；")#引发哀的知觉概念列表（senlist）和该列表引发的哀的水平（sad）之间用“；”连接
-            senlist=senlistsad1[0].split("。")#引发哀的知觉概念列表内部的概念用“。”连接
-            sad=int(senlistsad1[1])
-            #删除切片出的空内容
-            while "" in senlist:
-                senlist.remove("")
-
-            公共状态.sadhablist.append([senlist,sad])
-            hang=sadfile.readline().strip()
-
-    print("情绪习惯列表：")
-    print("（结构：[[senlist1，hap1/sad1],[senlist2，hap2/sad2],...]）")
-    print("喜习惯列表：",公共状态.haphablist)
-    print("哀习惯列表：",公共状态.sadhablist)
-
-    #同步行为空间（这是一个列表）
-    print("同步行为空间---------------")
-    公共状态.allact=[]
-    allactbbh=input("输入要同步的行为空间的版本号：")
-    allactwjlj="意识数据/行为空间/行为空间"+allactbbh+".txt"
+ILLEGAL_CHARS = set('\\/:*?"<>|')
 
 
-    with open(allactwjlj,"r",encoding='utf-8') as allactfile:
-        acts=allactfile.readline().strip()
-        while acts:
-            公共状态.allact.append(acts)
-            acts=allactfile.readline().strip()
-    print("行为空间：",公共状态.allact)
-
-    #同步行为习惯列表acthablist
-    print("同步行为习惯列表acthablist----------------")
-    公共状态.acthablist=[]
-    acthabbbh=input("输入要同步的行为习惯列表的版本号：")
-    acthabwjlj="意识数据/行为习惯列表/行为习惯列表"+acthabbbh+".txt"
-
-    with open(acthabwjlj,"r",encoding='utf-8') as acthabfile:
-        hang=acthabfile.readline().strip()
-        while hang:
-
-            psav1=hang.split("；")#ps、a、v之间用“；”连接
-            psav_p=psav1[0].split("。")#ps内部用“。”连接
-            psav_a=psav1[1].split("。")#a内部用“。”连接
-            v=int(psav1[2])
-            #删除切片出的空内容
-            while "" in psav_p:
-                psav_p.remove("")
-            while "" in psav_a:
-                psav_a.remove("")
-            公共状态.acthablist.append([psav_p,psav_a,v])
-            hang=acthabfile.readline().strip()
-    print("行为习惯列表acthablist:",公共状态.acthablist)
-
-    #同步自传体记忆
-    print("同步自传体记忆----------------")
-    公共状态.memorylist=[]
-    memorylistbbh=input("输入要同步的自传体记忆的版本号：")
-    memorylistwjlj="意识数据/自传体记忆/自传体记忆"+memorylistbbh+".txt"#自传体记忆文件路径
-
-    with open(memorylistwjlj,'r',encoding='utf-8') as memorylistfile:
-        hang=memorylistfile.readline().strip()
-        while hang:
-
-            senlist_actlist_vsum=hang.split("；")#senlist、actlist、vsum之间用“；”连接
-            senlist=senlist_actlist_vsum[0].split("。")#senlist内部的概念用“。”连接
-            actlist=senlist_actlist_vsum[1].split("。")#actlist内部的概念用“。”连接
-            vsum=int(senlist_actlist_vsum[2])
-            #删除切片出的空内容
-            while "" in senlist:
-                senlist.remove("")
-            while "" in actlist:
-                actlist.remove("")
-
-            公共状态.memorylist.append([senlist,actlist,vsum])
-            hang=memorylistfile.readline().strip()
-
-    print("自传体记忆：",公共状态.memorylist)
-
-    #同步状态转移概率矩阵
-    print("同步状态转移概率矩阵----------------")
-    公共状态.transmatrix=[]
-    transmatrixbbh=input("输入要同步的状态转移概率矩阵的版本号：")
-    transmatrixwjlj="意识数据/状态转移概率矩阵/状态转移概率矩阵"+transmatrixbbh+".txt"
-    with open(transmatrixwjlj,'r',encoding='utf-8') as transmatrixfile:
-        hang=transmatrixfile.readline().strip()
-        while hang:
-            translist=[]
-            startstate=hang.split("；")[0].split("。")
-            while "" in startstate:
-                startstate.remove("")
-            translist.append(startstate)
-
-            for i in hang.split("；")[1:]:
-                endstateseq=i.split("、")
-                while "" in endstateseq:
-                    endstateseq.remove("")
-                endstate=endstateseq[0].split("。")
-                while "" in endstate:
-                    endstate.remove("")
-                chance=float(endstateseq[1])
-                times=int(endstateseq[2])
-
-                translist.append([endstate,chance,times])
-
-            公共状态.transmatrix.append(translist)
-
-            hang=transmatrixfile.readline().strip()
-
-    print("状态转移概率矩阵：",公共状态.transmatrix)
-
-    #同步词典
-    print("同步词典----------------")
-    公共状态.dictionary=[]
-    dictionarybbh=input("输入要同步的词典的版本号：")
-    dictionarywjlj="意识数据/词典/词典"+dictionarybbh+".txt"#词典文件路径
-
-    with open(dictionarywjlj,'r',encoding='utf-8') as dictionaryfile:
-        hang=dictionaryfile.readline().strip()
-        while hang:
-
-            word_sen_weight=hang.split("；")#word、sen、weight之间用“；”连接
-            word=word_sen_weight[0]
-            sen=word_sen_weight[1]
-            weight=float(word_sen_weight[2])
-            公共状态.dictionary.append([word,sen,weight])
-            hang=dictionaryfile.readline().strip()
-
-    print("词典：",公共状态.dictionary)
-
-    #同步词转移概率矩阵
-    print("同步词转移概率矩阵----------------")
-    公共状态.word_trans_matrix=[]
-    word_trans_matrixbbh=input("输入要同步的词转移概率矩阵的版本号：")
-    word_trans_matrixwjlj="意识数据/词转移概率矩阵/词转移概率矩阵"+word_trans_matrixbbh+".txt"#词转移概率矩阵文件路径
-    with open(word_trans_matrixwjlj,'r',encoding='utf-8') as word_trans_matrixfile:
-        hang=word_trans_matrixfile.readline().strip()
-        while hang:
-            word1_word2_weight12=hang.split("；")#word1、word2、weight12之间用“；”连接
-            word1=word1_word2_weight12[0]
-            word2=word1_word2_weight12[1]
-            weight12=float(word1_word2_weight12[2])
-            公共状态.word_trans_matrix.append([word1,word2,weight12])
-            hang=word_trans_matrixfile.readline().strip()
-    print("词转移概率矩阵：",公共状态.word_trans_matrix)
+def normalize_version(version):
+    """版本号（文件名里“前缀”和扩展名之间的部分）→ 版本号；不合法时返回 (None, 原因)。
+    沿用原有意识数据的命名习惯：100、研究者_v1、螺旋藻v2_2 都可以。"""
+    version = (version or "").strip()
+    if not version:
+        return None, "请填写版本号"
+    for char in version:
+        if char in ILLEGAL_CHARS:
+            return None, "版本号中不能包含 \\ / : * ? \" < > | 等字符"
+    return version, ""
 
 
+# ---------------- 路径与统计 ----------------
 
-#保存记忆
-def 保存记忆():
-    if 公共状态.varcbbaocun1.get()==1 and 公共状态.varcbbaocun2.get()==1:
-        #保存情绪习惯列表
-        #保存喜习惯列表
-        hapbbh=input("输入要保存的喜习惯列表的版本号：")
-        hapwjlj="意识数据/情绪习惯列表/喜习惯列表/喜习惯列表"+hapbbh+".txt"#喜习惯列表文件路径
-        content=''
-        for senlist_hap in 公共状态.haphablist:
-            cont_senlist=''
-            for i in senlist_hap[0]:
-                cont_senlist+=str(i)+"。"
-
-            hap=senlist_hap[1]
-
-            line=cont_senlist+"；"+str(hap)
-            content+=str(line)+"\n"
-        with open(hapwjlj,"w",encoding='utf-8') as hapfile:
-            hapfile.write(content)
+def default_path(spec, memory):
+    return os.path.join(DATA_ROOT, spec["dir"], spec["prefix"] + memory + spec["suffix"])
 
 
-        #保存哀习惯列表
-        sadbbh=input("输入要保存的哀习惯列表的版本号：")
-        sadwjlj="意识数据/情绪习惯列表/哀习惯列表/哀习惯列表"+sadbbh+".txt"#哀习惯列表文件路径
-        content=''
-        for senlist_sad in 公共状态.sadhablist:
-            cont_senlist=''
-            for i in senlist_sad[0]:
-                cont_senlist+=str(i)+"。"
-
-            sad=senlist_sad[1]
-
-            line=cont_senlist+"；"+str(sad)
-            content+=str(line)+"\n"
-        with open(sadwjlj,"w",encoding='utf-8') as sadfile:
-            sadfile.write(content)
-
-        #保存行为习惯列表
-        acthabbbh=input("输入要保存的行为习惯列表的版本号：")
-        acthabwjlj="意识数据/行为习惯列表/行为习惯列表"+acthabbbh+".txt"
-        content=''
-
-        cont_ps=''
-        cont_a=''
-
-        for psav in 公共状态.acthablist:
-            cont_ps=''
-            cont_a=''
-            for i in psav[0]:
-                cont_ps+=str(i)+"。"
-            for i in psav[1]:
-                cont_a+=str(i)+"。"
-            v=psav[2]
-
-            line=cont_ps+"；"+cont_a+"；"+str(v)
-            content+=str(line)+"\n"
-        with open(acthabwjlj,"w",encoding='utf-8') as acthabfile:
-            acthabfile.write(content)
-
-        #保存自传体记忆
-        memorybbh=input("输入要保存的自传体记忆的版本号：")
-        memorywjlj="意识数据/自传体记忆/自传体记忆"+memorybbh+".txt"
-        content=''
-        for senlist_actlist_vsum in 公共状态.memorylist:
-            senlist=senlist_actlist_vsum[0]
-            actlist=senlist_actlist_vsum[1]
-            vsum=senlist_actlist_vsum[2]
-            cont_senlist=''
-            cont_actlist=''
-            for i in senlist:
-                cont_senlist+=str(i)+"。"
-            for i in actlist:
-                cont_actlist+=str(i)+"。"
-            line=cont_senlist+"；"+cont_actlist+"；"+str(vsum)
-            content+=str(line)+"\n"
-        with open(memorywjlj,"w",encoding='utf-8') as memoryfile:
-            memoryfile.write(content)
-
-        #保存状态转移概率矩阵
-        transbbh=input("输入要保存的状态转移概率矩阵的版本号：")
-        transwjlj="意识数据/状态转移概率矩阵/状态转移概率矩阵"+transbbh+".txt"
-        content=''
-        for translist in 公共状态.transmatrix:
-            cont_translist=''
-            cont_translist+='。'.join(translist[0])
-            for i in translist[1:]:
-                cont_translist+='；'+'。'.join(i[0])+"、"+str(i[1])+"、"+str(i[2])
-
-            line=cont_translist
-            content+=str(line)+"\n"
-
-        with open(transwjlj,"w",encoding='utf-8') as transfile:
-            transfile.write(content)
+def _read_lines(path):
+    with open(path, "r", encoding="utf-8-sig") as file:
+        return [hang.strip() for hang in file]
 
 
-        #保存词典
-        dictionarybbh=input("输入要保存的词典的版本号：")
-        dictionarywjlj="意识数据/词典/词典"+dictionarybbh+".txt"
-        content=''
-        for i in 公共状态.dictionary:
-            line=i[0]+"；"+i[1]+"；"+str(i[2])
-            content+=str(line)+"\n"
-        with open(dictionarywjlj,"w",encoding='utf-8') as dictionaryfile:
-            dictionaryfile.write(content)
-
-        #保存词转移概率矩阵
-        word_trans_matrixbbh=input("输入要保存的词转移概率矩阵的版本号：")
-        word_trans_matrixwjlj="意识数据/词转移概率矩阵/词转移概率矩阵"+word_trans_matrixbbh+".txt"
-        content=''
-        for i in 公共状态.word_trans_matrix:
-            line=i[0]+"；"+i[1]+"；"+str(i[2])
-            content+=str(line)+"\n"
-        with open(word_trans_matrixwjlj,"w",encoding='utf-8') as word_trans_matrixfile:
-            word_trans_matrixfile.write(content)
-
-        #保存ART
-        artbbh=input("输入要保存的ART模型的版本号：")
-        artwjlj="意识数据/ART/ART"+artbbh+".csv"
-        df = pd.DataFrame(公共状态.art_model.prototypes)# 将prototypes转换为DataFrame
-        # 保存为CSV文件，不包含标题行，每行之间没有空行
-        df.to_csv(artwjlj, index=False, header=False)
+def _count_nonempty(path):
+    return sum(1 for hang in _read_lines(path) if hang)
 
 
-        print("保存成功——————————————")
-        公共状态.varcbbaocun1.set(0)
-        公共状态.varcbbaocun2.set(0)
+def _art_shape(path):
+    with open(path, "r", encoding="utf-8-sig") as file:
+        rows = [hang for hang in file if hang.strip()]
+    if not rows:
+        return 0, 0
+    columns = len([field for field in rows[0].strip().split(",") if field.strip()])
+    return len(rows), columns
+
+
+def count_rows(path, key):
+    """文件不存在返回 None；ART 返回“行×列”；其余返回非空行数"""
+    if not os.path.exists(path):
+        return None
+    if key == "ART":
+        rows, columns = _art_shape(path)
+        return "%d×%d" % (rows, columns)
+    return _count_nonempty(path)
+
+
+def list_memories():
+    """扫描 意识数据，返回 {版本号: {"paths": {key: 路径}, "mtime": 最后修改时间}}"""
+    result = {}
+    for spec in TYPE_SPECS:
+        folder = os.path.join(DATA_ROOT, spec["dir"])
+        if not os.path.isdir(folder):
+            continue
+        for filename in os.listdir(folder):
+            if not (filename.startswith(spec["prefix"]) and filename.endswith(spec["suffix"])):
+                continue
+            memory = filename[len(spec["prefix"]):len(filename) - len(spec["suffix"])]
+            if not memory:
+                continue
+            path = os.path.join(folder, filename)
+            entry = result.setdefault(memory, {"paths": {}, "mtime": 0.0})
+            entry["paths"][spec["key"]] = path
+            try:
+                entry["mtime"] = max(entry["mtime"], os.path.getmtime(path))
+            except OSError:
+                pass
+    return result
+
+
+def memory_files(memory, overrides=None):
+    """导入用：逐类列出路径、是否存在、文件里的条数"""
+    overrides = overrides or {}
+    result = []
+    for spec in TYPE_SPECS:
+        path = overrides.get(spec["key"]) or default_path(spec, memory)
+        exists = os.path.exists(path)
+        result.append({
+            "key": spec["key"],
+            "name": spec["name"],
+            "path": path,
+            "exists": exists,
+            "count": count_rows(path, spec["key"]) if exists else None,
+        })
+    return result
+
+
+def export_preview(memory, overrides=None):
+    """导出用：逐类列出目标路径、内存里条数、将新建还是覆盖"""
+    overrides = overrides or {}
+    result = []
+    for spec in TYPE_SPECS:
+        key = spec["key"]
+        path = overrides.get(key) or default_path(spec, memory)
+        exists = os.path.exists(path)
+        if key == "ART":
+            if 公共状态.art_model is None:
+                count, status = "—", "跳过（模型未加载）"
+            else:
+                prototypes = 公共状态.art_model.prototypes
+                count = "%d×%d" % (len(prototypes), len(prototypes[0]) if len(prototypes) else 0)
+                status = "覆盖" if exists else "新建"
+        else:
+            count = len(getattr(公共状态, spec["var"], []) or [])
+            status = "覆盖" if exists else "新建"
+        result.append({
+            "key": key,
+            "name": spec["name"],
+            "path": path,
+            "exists": exists,
+            "count": count,
+            "status": status,
+        })
+    return result
+
+
+# ---------------- 解析 ----------------
+
+def _concept_list(field):
+    return [part for part in field.split("。") if part]
+
+
+def _to_number(field):
+    try:
+        return float(field)
+    except (TypeError, ValueError):
+        return None
+
+
+def _to_int(field):
+    number = _to_number(field)
+    if number is None or number != int(number):
+        return None
+    return int(number)
+
+
+def _parse_emotion(path):
+    items, bad_lines = [], []
+    for line_no, hang in enumerate(_read_lines(path), 1):
+        if not hang:
+            continue
+        parts = hang.split("；")
+        if len(parts) != 2:
+            bad_lines.append((line_no, hang, "应为 2 段，实际 %d 段" % len(parts)))
+            continue
+        strength = _to_number(parts[1])
+        if strength is None:
+            bad_lines.append((line_no, hang, "情绪强度不是数字"))
+            continue
+        items.append([_concept_list(parts[0]), int(strength) if strength == int(strength) else strength])
+    return items, bad_lines
+
+
+def _parse_action_space(path):
+    return [line for line in _read_lines(path) if line], []
+
+
+def _parse_three_columns(path):
+    """行为习惯、自传体记忆：概念；概念；数值"""
+    items, bad_lines = [], []
+    for line_no, hang in enumerate(_read_lines(path), 1):
+        if not hang:
+            continue
+        parts = hang.split("；")
+        if len(parts) != 3:
+            bad_lines.append((line_no, hang, "应为 3 段，实际 %d 段" % len(parts)))
+            continue
+        v = _to_number(parts[2])
+        if v is None:
+            bad_lines.append((line_no, hang, "价值不是数字"))
+            continue
+        items.append([_concept_list(parts[0]), _concept_list(parts[1]), v])
+    return items, bad_lines
+
+
+def _parse_transition(path):
+    items, bad_lines = [], []
+    for line_no, hang in enumerate(_read_lines(path), 1):
+        if not hang:
+            continue
+        parts = hang.split("；")
+        transition = [_concept_list(parts[0])]
+        error = None
+        for successor_field in parts[1:]:
+            sub_parts = successor_field.split("、")
+            if len(sub_parts) != 3:
+                error = "转移应为 3 段，实际 %d 段" % len(sub_parts)
+                break
+            chance = _to_number(sub_parts[1])
+            times = _to_int(sub_parts[2])
+            if chance is None or times is None:
+                error = "转移的概率或次数不是数字"
+                break
+            transition.append([_concept_list(sub_parts[0]), chance, times])
+        if error:
+            bad_lines.append((line_no, hang, error))
+            continue
+        items.append(transition)
+    return items, bad_lines
+
+
+def _parse_dictionary(path):
+    items, bad_lines = [], []
+    for line_no, hang in enumerate(_read_lines(path), 1):
+        if not hang:
+            continue
+        parts = hang.split("；")
+        if len(parts) != 3:
+            bad_lines.append((line_no, hang, "应为 3 段，实际 %d 段" % len(parts)))
+            continue
+        weight = _to_number(parts[2])
+        if weight is None:
+            bad_lines.append((line_no, hang, "权重不是数字"))
+            continue
+        items.append([parts[0], parts[1], weight])
+    return items, bad_lines
+
+
+PARSERS = {
+    "喜": _parse_emotion,
+    "哀": _parse_emotion,
+    "行为空间": _parse_action_space,
+    "行为习惯": _parse_three_columns,
+    "自传体": _parse_three_columns,
+    "状态转移": _parse_transition,
+    "词典": _parse_dictionary,
+    "词转移": _parse_dictionary,
+}
+
+
+# ---------------- 序列化 ----------------
+
+def _number_text(value):
+    if isinstance(value, bool):
+        return str(int(value))
+    if isinstance(value, int):
+        return str(value)
+    value = float(value)
+    if value == int(value):
+        return str(int(value))
+    return repr(value)#最短且能精确回读的写法
+
+
+def _concept_field(concept):
+    return "".join(str(item) + "。" for item in concept)
+
+
+def _serialize_emotion(items):
+    return "".join(_concept_field(concept) + "；" + _number_text(value) + "\n"
+                   for concept, value in items)
+
+
+def _serialize_action_space(items):
+    return "".join(str(action) + "\n" for action in items)
+
+
+def _serialize_three_columns(items):
+    return "".join(_concept_field(first) + "；" + _concept_field(second) + "；" + _number_text(v) + "\n"
+                   for first, second, v in items)
+
+
+def _serialize_transition(items):
+    content = ""
+    for transition in items:
+        line = _concept_field(transition[0])
+        for successor in transition[1:]:
+            line += "；" + _concept_field(successor[0]) + "、" + _number_text(successor[1]) + "、" + _number_text(successor[2])
+        content += line + "\n"
+    return content
+
+
+def _serialize_dictionary(items):
+    return "".join(str(word) + "；" + str(meaning) + "；" + _number_text(weight) + "\n"
+                   for word, meaning, weight in items)
+
+
+def _serialize_art(prototypes):
+    lines = []
+    for row in prototypes:
+        lines.append(",".join("%.10g" % float(value) for value in row))
+    if not lines:
+        return ""
+    return "\n".join(lines) + "\n"
+
+
+SERIALIZERS = {
+    "喜": _serialize_emotion,
+    "哀": _serialize_emotion,
+    "行为空间": _serialize_action_space,
+    "行为习惯": _serialize_three_columns,
+    "自传体": _serialize_three_columns,
+    "状态转移": _serialize_transition,
+    "词典": _serialize_dictionary,
+    "词转移": _serialize_dictionary,
+}
+
+
+# ---------------- 导入 / 导出 ----------------
+
+def import_memory(memory, overrides=None, skip_bad_lines=False, commit=True):
+    """读取一个记忆。
+    commit=True 且没有任何坏行时，才写入 公共状态（保证不会导入半个包）。
+    返回 (成功, 报告, 错误列表)"""
+    overrides = overrides or {}
+    staged = {}
+    report = []
+    errors = []
+
+    for spec in TYPE_SPECS:
+        key = spec["key"]
+        if key == "ART":
+            continue
+        path = overrides.get(key) or default_path(spec, memory)
+        if not os.path.exists(path):
+            staged[spec["var"]] = []
+            report.append({"key": key, "name": spec["name"], "path": path,
+                           "status": "缺失（按空表导入）", "count": 0, "bad_lines": []})
+            continue
+        items, bad_lines = PARSERS[key](path)
+        if bad_lines and not skip_bad_lines:
+            errors.append({"key": key, "name": spec["name"], "path": path, "bad_lines": bad_lines})
+        staged[spec["var"]] = items
+        report.append({
+            "key": key,
+            "name": spec["name"],
+            "path": path,
+            "status": "已读取" if not bad_lines else "含坏行（跳过 %d 行）" % len(bad_lines),
+            "count": len(items),
+            "bad_lines": bad_lines,
+        })
+
+    if errors:
+        return False, report, errors
+    if not commit:
+        return True, report, []
+
+    for var, items in staged.items():
+        setattr(公共状态, var, items)
+
+    公共状态.current_memory = memory
+    #ART 由 知觉分类模块 按这个路径加载
+    公共状态.art_path = overrides.get("ART") or default_path(
+        [spec for spec in TYPE_SPECS if spec["key"] == "ART"][0], memory)
+    return True, report, []
+
+
+def export_memory(memory, overrides=None):
+    """把内存里的 9 类数据写成一个记忆（两阶段写出，避免半个包）。
+    返回 (成功, 报告, 错误信息)"""
+    overrides = overrides or {}
+    pending = []
+    report = []
+
+    for spec in TYPE_SPECS:
+        key = spec["key"]
+        path = overrides.get(key) or default_path(spec, memory)
+        if key == "ART":
+            if 公共状态.art_model is None:
+                report.append({"key": key, "name": spec["name"], "path": path,
+                               "status": "跳过（模型未加载）", "count": "—"})
+                continue
+            content = _serialize_art(公共状态.art_model.prototypes)
+            if not content:
+                report.append({"key": key, "name": spec["name"], "path": path,
+                               "status": "跳过（无原型）", "count": "—"})
+                continue
+        else:
+            content = SERIALIZERS[key](getattr(公共状态, spec["var"], []) or [])
+        pending.append((path, content, key, spec["name"]))
+        report.append({
+            "key": key,
+            "name": spec["name"],
+            "path": path,
+            "status": "覆盖" if os.path.exists(path) else "新建",
+            "count": content.count("\n"),
+        })
+
+    temp_files = []
+    try:
+        for path, content, key, name in pending:
+            folder = os.path.dirname(path)
+            if folder:
+                os.makedirs(folder, exist_ok=True)
+            temp = path + ".tmp"
+            with open(temp, "w", encoding="utf-8", newline="") as file:
+                file.write(content)
+            temp_files.append((temp, path))
+    except Exception as error:
+        for temp, path in temp_files:
+            try:
+                os.remove(temp)
+            except OSError:
+                pass
+        return False, report, str(error)
+
+    for temp, path in temp_files:
+        os.replace(temp, path)
+
+    公共状态.current_memory = memory
+    return True, report, ""
