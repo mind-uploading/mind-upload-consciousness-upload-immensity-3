@@ -137,7 +137,7 @@ def 初始化界面():
     varcb自动保存=IntVar()
     cb自动保存=Checkbutton(root,text="每回合自动保存到当前记忆包",variable=varcb自动保存,onvalue=1,offvalue=0)
     cb自动保存.grid(row=12,column=1)
-    btn记忆包=Button(root,text="记忆包…（导出）",command=lambda: 打开记忆包窗口("导出"))
+    btn记忆包=Button(root,text="记忆包…（导出）",command=lambda: open_package_window("导出"))
     btn记忆包.grid(row=13,column=1)
 
 
@@ -202,367 +202,360 @@ def extend_senlist():
 
 #============================ 记忆包窗口（导入/导出） ============================
 
-class 记忆包窗口:
+class PackageWindow:
     """一个窗口两种模式：启动时导入、运行中导出。
-    两种模式不能在这个窗口里直接切换：导入会替换内存、导出会写盘，时机不同。
-    “一键模式”= 只填一个版本号，9 类文件路径自动拼出（默认）；
-    “逐文件导入”= 勾选后每个类型行右侧出现“选择文件…”，单独指定该类型读哪个文件。"""
+    “一键”= 只填一个版本号，9 类文件路径自动拼出（默认）；
+    “逐文件导入”= 勾选后每个类型行右侧出现“选择文件…”，单独指定读哪个文件。"""
 
-    def __init__(self, 父窗口, 模式):
-        self.父窗口 = 父窗口
-        self.模式 = 模式
-        self.覆盖路径 = {}
-        self._静默 = False
+    def __init__(self, parent, mode):
+        self.parent = parent
+        self.mode = mode
+        self.overrides = {}
+        self._silent = False
 
-        self.窗口 = Toplevel(父窗口)
-        self.窗口.title("记忆包 · " + 模式)
-        self.窗口.geometry("1120x740")
-        self.窗口.transient(父窗口)
-        self.窗口.protocol("WM_DELETE_WINDOW", self._关闭)
+        self.win = Toplevel(parent)
+        self.win.title("导入记忆" if mode == "导入" else "导出记忆")
+        self.win.geometry("1120x740")
+        self.win.transient(parent)
+        self.win.protocol("WM_DELETE_WINDOW", self._on_close)
 
-        self._建界面()
-        self._预填()
-        self._刷新版本列表()
-        self._刷新明细()
-        self._校验()
+        self._build_ui()
+        self._prefill()
+        self._refresh_versions()
+        self._refresh_detail()
+        self._validate()
         try:
-            self.窗口.grab_set()
+            self.win.grab_set()
         except Exception:
-            self.窗口.after(100, self._重新抓取)
+            self.win.after(100, self._grab_again)
 
-    def _重新抓取(self):
+    def _grab_again(self):
         try:
-            self.窗口.grab_set()
+            self.win.grab_set()
         except Exception:
             pass
 
-    def 等待关闭(self):
-        self.窗口.wait_window(self.窗口)
+    def wait_closed(self):
+        self.win.wait_window(self.win)
 
     # ---------------- 界面 ----------------
 
-    def _建界面(self):
-        self.版本号 = StringVar()
-        self.包名 = StringVar()
-        self.状态 = StringVar(value="")
+    def _build_ui(self):
+        self.version = StringVar()
+        self.package = StringVar()
+        self.status = StringVar(value="")
+        is_import = self.mode == "导入"
 
-        顶部 = Frame(self.窗口)
-        顶部.pack(fill=X, padx=12, pady=(12, 2))
-        Label(顶部, text=("导入记忆包" if self.模式 == "导入" else "导出记忆包"),
+        header = Frame(self.win)
+        header.pack(fill=X, padx=12, pady=(12, 2))
+        Label(header, text="导入记忆" if is_import else "导出记忆",
               font=("Microsoft YaHei", 15, "bold")).pack(side=LEFT)
-        Label(顶部, text=("  选择已有版本，或直接输入版本号" if self.模式 == "导入"
-                          else "  填写新版本号，把当前心智内容写成一包"),
+        Label(header, text="  选择版本，或直接输入版本号" if is_import else "  填写新版本号",
               fg="#666").pack(side=LEFT)
 
-        输入行 = Frame(self.窗口)
-        输入行.pack(fill=X, padx=12, pady=8)
-        Label(输入行, text="版本号", font=("Microsoft YaHei", 11)).pack(side=LEFT)
-        #导入时可以下拉选已有版本；导出时直接输入新版本号
-        self.版本号框 = ttk.Combobox(输入行, textvariable=self.版本号, width=26)
-        self.版本号框.pack(side=LEFT, padx=6)
-        Label(输入行, text="（如 100、研究者_v1）" if self.模式 == "导入" else "（如 104）",
+        row = Frame(self.win)
+        row.pack(fill=X, padx=12, pady=8)
+        Label(row, text="版本号", font=("Microsoft YaHei", 11)).pack(side=LEFT)
+        self.version_box = ttk.Combobox(row, textvariable=self.version, width=26)
+        self.version_box.pack(side=LEFT, padx=6)
+        Label(row, text="（如 100、研究者_v1）" if is_import else "（如 104）",
               fg="#999").pack(side=LEFT)
 
-        self.提示标签 = Label(self.窗口, textvariable=self.状态, fg="#0a58ca", anchor="w")
-        self.提示标签.pack(fill=X, padx=12)
+        self.tip_label = Label(self.win, textvariable=self.status, fg="#0a58ca", anchor="w")
+        self.tip_label.pack(fill=X, padx=12)
 
-        Label(self.窗口, text="这一包的 9 类文件").pack(anchor=W, padx=12, pady=(10, 0))
+        Label(self.win, text="9 类文件").pack(anchor=W, padx=12, pady=(10, 0))
 
-        self.逐文件 = IntVar(value=0)
-        选项行 = Frame(self.窗口)
-        选项行.pack(fill=X, padx=12, pady=(2, 4))
-        if self.模式 == "导入":
-            #默认一键导入：9 类文件全部按版本号自动拼路径；勾选后才逐行单独指定
-            Checkbutton(选项行, text="逐文件导入（勾选后可单独指定每个类型的文件）",
-                        variable=self.逐文件,
-                        command=self._切换逐文件).pack(side=LEFT)
-            self.恢复全部按钮 = Button(选项行, text="全部恢复自动", state=DISABLED,
-                                      command=self._恢复全部)
-            self.恢复全部按钮.pack(side=LEFT, padx=10)
+        self.per_file = IntVar(value=0)
+        options = Frame(self.win)
+        options.pack(fill=X, padx=12, pady=(2, 4))
+        if is_import:
+            #默认一键导入；勾选后才逐行单独指定文件
+            Checkbutton(options, text="逐文件导入", variable=self.per_file,
+                        command=self._toggle_per_file).pack(side=LEFT)
+            self.reset_btn = Button(options, text="全部恢复", state=DISABLED,
+                                    command=self._reset_overrides)
+            self.reset_btn.pack(side=LEFT, padx=10)
         else:
-            Label(选项行, text="默认一键导出 9 类文件", fg="#999").pack(side=LEFT)
+            Label(options, text="一键导出", fg="#999").pack(side=LEFT)
 
-        表框 = Frame(self.窗口)
-        表框.pack(fill=BOTH, expand=True, padx=12)
-        表头 = Frame(表框)
-        表头.pack(fill=X)
-        Label(表头, text="类型", width=26, anchor="w",
+        table = Frame(self.win)
+        table.pack(fill=BOTH, expand=True, padx=12)
+        head = Frame(table)
+        head.pack(fill=X)
+        Label(head, text="类型", width=26, anchor="w",
               font=("Microsoft YaHei", 9, "bold")).grid(row=0, column=0, sticky="w")
-        Label(表头, text="条数", width=10, anchor="center",
+        Label(head, text="条数", width=10, anchor="center",
               font=("Microsoft YaHei", 9, "bold")).grid(row=0, column=1)
-        Label(表头, text="状态", anchor="w",
+        Label(head, text="状态", anchor="w",
               font=("Microsoft YaHei", 9, "bold")).grid(row=0, column=2, sticky="w")
 
-        行区域 = Frame(表框)
-        行区域.pack(fill=BOTH, expand=True)
-        行区域.columnconfigure(2, weight=1)
-        self.明细行 = {}
-        for 序号, 规格 in enumerate(记忆管理.类型规格):
-            键 = 规格["键"]
-            类型标签 = Label(行区域, text=规格["名称"], width=26, anchor="w")
-            条数标签 = Label(行区域, text="—", width=10, anchor="center")
-            状态标签 = Label(行区域, text="", anchor="w")
-            按钮 = Button(行区域, text="选择文件…", width=11,
-                         command=lambda 键=键: self._选择文件(键))
-            类型标签.grid(row=序号, column=0, sticky="w", pady=2)
-            条数标签.grid(row=序号, column=1, pady=2)
-            状态标签.grid(row=序号, column=2, sticky="we", padx=(4, 6), pady=2)
-            按钮.grid(row=序号, column=3, padx=(0, 4), pady=2)
-            按钮.grid_remove()
-            self.明细行[键] = {"类型": 类型标签, "条数": 条数标签,
-                             "状态": 状态标签, "按钮": 按钮}
+        body = Frame(table)
+        body.pack(fill=BOTH, expand=True)
+        body.columnconfigure(2, weight=1)
+        self.rows = {}
+        for index, spec in enumerate(记忆管理.TYPE_SPECS):
+            key = spec["key"]
+            type_label = Label(body, text=spec["name"], width=26, anchor="w")
+            count_label = Label(body, text="—", width=10, anchor="center")
+            status_label = Label(body, text="", anchor="w")
+            pick_btn = Button(body, text="选择文件…", width=11,
+                              command=lambda key=key: self._pick_file(key))
+            type_label.grid(row=index, column=0, sticky="w", pady=2)
+            count_label.grid(row=index, column=1, pady=2)
+            status_label.grid(row=index, column=2, sticky="we", padx=(4, 6), pady=2)
+            pick_btn.grid(row=index, column=3, padx=(0, 4), pady=2)
+            pick_btn.grid_remove()
+            self.rows[key] = {"type": type_label, "count": count_label,
+                              "status": status_label, "pick": pick_btn}
 
-        按钮行 = Frame(self.窗口)
-        按钮行.pack(fill=X, padx=12, pady=10)
-        self.确认按钮 = Button(按钮行, width=12, command=self._确认, state=DISABLED,
-                            text=("确认导入" if self.模式 == "导入" else "确认导出"))
-        self.确认按钮.pack(side=RIGHT)
-        Button(按钮行, text=("退出" if self.模式 == "导入" else "关闭"), width=8,
-               command=self._关闭).pack(side=RIGHT, padx=6)
+        buttons = Frame(self.win)
+        buttons.pack(fill=X, padx=12, pady=10)
+        self.confirm_btn = Button(buttons, width=12, command=self._on_confirm,
+                                  state=DISABLED, text="导入" if is_import else "导出")
+        self.confirm_btn.pack(side=RIGHT)
+        Button(buttons, text="退出" if is_import else "关闭", width=8,
+               command=self._on_close).pack(side=RIGHT, padx=6)
 
-        self.版本号.trace_add("write", self._输入变化)
+        self.version.trace_add("write", self._on_input)
 
     # ---------------- 事件 ----------------
 
-    def _切换逐文件(self):
-        """勾选“逐文件导入”后，每个类型行右侧出现“选择文件…”按钮；
-        取消勾选即回到一键导入，之前单独指定的文件作废。"""
-        显示 = bool(self.逐文件.get())
-        if not 显示:
-            self.覆盖路径.clear()
-        for 行控件 in self.明细行.values():
-            if 显示:
-                行控件["按钮"].grid()
-            else:
-                行控件["按钮"].grid_remove()
-        if hasattr(self, "恢复全部按钮"):
-            self.恢复全部按钮.config(state=NORMAL if self.覆盖路径 else DISABLED)
-        self._刷新明细()
-        self._校验()
-
-    def _预填(self):
-        if self.模式 == "导入":
+    def _prefill(self):
+        if self.mode == "导入":
             return
-        self.版本号.set(记忆管理.建议版本号(公共状态.当前记忆包))
+        self.version.set(记忆管理.suggest_version(公共状态.当前记忆包))
 
-    def _刷新版本列表(self):
-        """导入时把已有版本放进下拉框，导出时不需要"""
-        if self.模式 == "导入":
-            self.版本号框["values"] = sorted(记忆管理.列出记忆包())
+    def _refresh_versions(self):
+        if self.mode == "导入":
+            self.version_box["values"] = sorted(记忆管理.list_packages())
 
-    def _输入变化(self, *参数):
-        if self._静默:
+    def _on_input(self, *args):
+        if self._silent:
             return
-        包名, 错误 = 记忆管理.规范化包名(self.版本号.get())
-        self._静默 = True
-        self.包名.set(包名 or "")
-        self._静默 = False
-        self._刷新明细()
-        self._校验()
+        package, error = 记忆管理.normalize_package(self.version.get())
+        self._silent = True
+        self.package.set(package or "")
+        self._silent = False
+        self._refresh_detail()
+        self._validate()
 
-    def _刷新明细(self):
-        if self.模式 == "导入":
-            包名 = self.包名.get().strip()
-            if not 包名:
-                for 行控件 in self.明细行.values():
-                    行控件["条数"].config(text="—")
-                    行控件["状态"].config(text="")
+    def _refresh_detail(self):
+        if self.mode == "导入":
+            package = self.package.get().strip()
+            if not package:
+                for row in self.rows.values():
+                    row["count"].config(text="—")
+                    row["status"].config(text="")
+                if hasattr(self, "reset_btn"):
+                    self.reset_btn.config(state=NORMAL if self.overrides else DISABLED)
                 return
-            for 行 in 记忆管理.包内文件(包名, self.覆盖路径):
-                行控件 = self.明细行[行["键"]]
-                行控件["条数"].config(
-                    text="—" if 行["条数"] is None else str(行["条数"]))
-                if 行["键"] in self.覆盖路径:
-                    状态 = "手动指定：%s" % os.path.basename(self.覆盖路径[行["键"]])
-                elif 行["存在"]:
-                    状态 = "自动：%s" % os.path.basename(行["路径"])
+            for item in 记忆管理.package_files(package, self.overrides):
+                row = self.rows[item["key"]]
+                row["count"].config(text="—" if item["count"] is None else str(item["count"]))
+                if item["key"] in self.overrides:
+                    text = "手动指定：%s" % os.path.basename(self.overrides[item["key"]])
+                elif item["exists"]:
+                    text = "自动：%s" % os.path.basename(item["path"])
                 else:
-                    状态 = "缺失（ART置空）" if 行["键"] == "ART" else "缺失（按空表）"
-                行控件["状态"].config(text=状态)
+                    text = "缺失"
+                row["status"].config(text=text)
         else:
-            包名 = self.包名.get().strip() or "未命名"
-            for 行 in 记忆管理.导出预览(包名, self.覆盖路径):
-                行控件 = self.明细行[行["键"]]
-                行控件["条数"].config(text=str(行["条数"]))
-                if 行["键"] in self.覆盖路径:
-                    状态 = "手动指定：%s" % os.path.basename(self.覆盖路径[行["键"]])
-                else:
-                    状态 = 行["状态"]
-                行控件["状态"].config(text=状态)
-        if hasattr(self, "恢复全部按钮"):
-            self.恢复全部按钮.config(state=NORMAL if self.覆盖路径 else DISABLED)
+            package = self.package.get().strip() or "未命名"
+            for item in 记忆管理.export_preview(package, self.overrides):
+                row = self.rows[item["key"]]
+                row["count"].config(text=str(item["count"]))
+                row["status"].config(text=item["status"])
+        if hasattr(self, "reset_btn"):
+            self.reset_btn.config(state=NORMAL if self.overrides else DISABLED)
 
-    def _校验(self):
-        有效 = False
-        提示 = ""
-        if self.模式 == "导出":
-            包名, 错误 = 记忆管理.规范化包名(self.版本号.get())
-            if 错误:
-                提示 = 错误
+    def _validate(self):
+        valid = False
+        tip = ""
+        if self.mode == "导出":
+            package, error = 记忆管理.normalize_package(self.version.get())
+            if error:
+                tip = error
             else:
-                总数 = sum(len(getattr(公共状态, 规格["变量"], []) or [])
-                          for 规格 in 记忆管理.类型规格 if 规格["变量"])
-                提示 = "将导出为：%s（%d 条记录）" % (包名, 总数)
-                有效 = True
+                total = sum(len(getattr(公共状态, spec["var"], []) or [])
+                            for spec in 记忆管理.TYPE_SPECS if spec["var"])
+                tip = "导出：%s（%d 条）" % (package, total)
+                valid = True
         else:
-            包名 = self.包名.get().strip()
-            if not 包名:
-                提示 = "请选择或输入版本号"
+            package = self.package.get().strip()
+            if not package:
+                tip = "请选择或输入版本号"
             else:
-                找到 = 0
-                for 规格 in 记忆管理.类型规格:
-                    路径 = self.覆盖路径.get(规格["键"]) or 记忆管理.默认路径(规格, 包名)
-                    if os.path.exists(路径):
-                        找到 += 1
-                if 找到 == 0:
-                    提示 = "未找到该记忆包的任何文件"
+                found = 0
+                for spec in 记忆管理.TYPE_SPECS:
+                    path = self.overrides.get(spec["key"]) or 记忆管理.default_path(spec, package)
+                    if os.path.exists(path):
+                        found += 1
+                if found == 0:
+                    tip = "未找到任何文件"
                 else:
-                    提示 = "找到 %d/9 类文件" % 找到
-                    有效 = True
-        self.确认按钮.config(state=NORMAL if 有效 else DISABLED)
-        self.状态.set(提示)
-        return 有效
+                    tip = "找到 %d/9 类文件" % found
+                    valid = True
+        self.confirm_btn.config(state=NORMAL if valid else DISABLED)
+        self.status.set(tip)
+        return valid
 
     # ---------------- 执行 ----------------
 
-    def _确认(self):
-        if not self._校验():
-            messagebox.showwarning("无法继续", "输入尚不完整或无效，请先补全。", parent=self.窗口)
+    def _on_confirm(self):
+        if not self._validate():
+            messagebox.showwarning("无法继续", "请先补全输入。", parent=self.win)
             return
-        if self.模式 == "导入":
-            self._执行导入()
+        if self.mode == "导入":
+            self._do_import()
         else:
-            self._执行导出()
+            self._do_export()
 
-    def _执行导入(self):
-        包名 = self.包名.get().strip()
-        跳过坏行 = False
-        成功, 报告, 错误 = 记忆管理.导入记忆包(包名, self.覆盖路径, 跳过坏行=False, 提交=False)
-        if not 成功 and 错误:
-            文本 = []
-            for 项 in 错误[:6]:
-                坏 = 项["坏行"][0]
-                文本.append("· %s：%d 行无法解析，例如第 %d 行（%s）" %
-                          (项["名称"], len(项["坏行"]), 坏[0], 坏[2]))
+    def _do_import(self):
+        package = self.package.get().strip()
+        skip_bad = False
+        ok, report, errors = 记忆管理.import_package(
+            package, self.overrides, skip_bad_lines=False, commit=False)
+        if not ok and errors:
+            lines = []
+            for item in errors[:6]:
+                bad = item["bad_lines"][0]
+                lines.append("· %s：%d 行无法解析（如第 %d 行：%s）" %
+                             (item["name"], len(item["bad_lines"]), bad[0], bad[2]))
             if not messagebox.askyesno(
                     "存在无法解析的行",
-                    "以下文件里有无法解析的行：\n\n" + "\n".join(文本) +
-                    "\n\n是否跳过这些坏行继续导入？", parent=self.窗口):
+                    "\n".join(lines) + "\n\n跳过这些行继续导入？", parent=self.win):
                 return
-            跳过坏行 = True
-            成功, 报告, 错误 = 记忆管理.导入记忆包(包名, self.覆盖路径, 跳过坏行=True, 提交=False)
-            if not 成功:
-                self._显示错误(错误)
+            skip_bad = True
+            ok, report, errors = 记忆管理.import_package(
+                package, self.overrides, skip_bad_lines=True, commit=False)
+            if not ok:
+                self._show_errors(errors)
                 return
 
-        汇总 = "、".join("%s %s 条" % (项["名称"], 项["条数"]) for 项 in 报告)
-        缺失 = [项["名称"] for 项 in 报告 if 项["状态"].startswith("缺失")]
-        提示 = "将从记忆包「%s」导入：\n\n%s\n\n当前内存中的心智内容会被替换。" % (包名, 汇总)
-        if 缺失:
-            提示 += "\n\n以下类型没有文件，将按空表导入：\n" + "、".join(缺失)
-        自传体条数 = next((项["条数"] for 项 in 报告 if 项["键"] == "自传体"), 0)
-        行为空间条数 = next((项["条数"] for 项 in 报告 if 项["键"] == "行为空间"), 0)
-        if 自传体条数 < 5:
-            提示 += "\n\n注意：自传体记忆只有 %d 条（程序需要至少 5 条）。" % 自传体条数
-        if 行为空间条数 == 0:
-            提示 += "\n\n注意：行为空间为空，运行中调整行为习惯时可能出错。"
-        提示 += "\n\n导入后若勾选了“每回合自动保存”，本回合的改动会写回该记忆包。"
-        if not messagebox.askyesno("确认导入", 提示 + "\n\n确定导入吗？", parent=self.窗口):
+        summary = "、".join("%s %s" % (item["name"], item["count"]) for item in report)
+        missing = [item["name"] for item in report if item["status"].startswith("缺失")]
+        text = "从「%s」导入：\n\n%s\n\n当前内容会被替换。" % (package, summary)
+        if missing:
+            text += "\n\n没有文件的类型按空表导入：" + "、".join(missing)
+        autobiographic = next((item["count"] for item in report if item["key"] == "自传体"), 0)
+        action_space = next((item["count"] for item in report if item["key"] == "行为空间"), 0)
+        if autobiographic < 5:
+            text += "\n\n注意：自传体记忆只有 %d 条（至少需要 5 条）。" % autobiographic
+        if action_space == 0:
+            text += "\n\n注意：行为空间为空。"
+        if not messagebox.askyesno("确认导入", text + "\n\n确定导入？", parent=self.win):
             return
 
-        成功, 报告, 错误 = 记忆管理.导入记忆包(包名, self.覆盖路径,
-                                              跳过坏行=跳过坏行, 提交=True)
-        if not 成功:
-            self._显示错误(错误)
+        ok, report, errors = 记忆管理.import_package(
+            package, self.overrides, skip_bad_lines=skip_bad, commit=True)
+        if not ok:
+            self._show_errors(errors)
             return
-        messagebox.showinfo("导入完成", "记忆包「%s」已导入。" % 包名, parent=self.窗口)
-        self.窗口.destroy()
+        messagebox.showinfo("导入完成", "已导入「%s」。" % package, parent=self.win)
+        self.win.destroy()
 
-    def _执行导出(self):
-        包名, 错误 = 记忆管理.规范化包名(self.版本号.get())
-        if 错误:
-            messagebox.showwarning("无法导出", 错误, parent=self.窗口)
+    def _do_export(self):
+        package, error = 记忆管理.normalize_package(self.version.get())
+        if error:
+            messagebox.showwarning("无法导出", error, parent=self.win)
             return
-        已存在 = 包名 in 记忆管理.列出记忆包()
-        提示 = "将把当前心智内容导出为记忆包「%s」（9 类文件）。" % 包名
-        if 已存在:
-            提示 += "\n\n注意：该记忆包已存在，同名文件会被覆盖。"
+        exists = package in 记忆管理.list_packages()
+        text = "将导出为「%s」（9 类文件）。" % package
+        if exists:
+            text += "\n\n同名文件会被覆盖。"
         if len(公共状态.memorylist) < 5:
-            提示 += "\n\n注意：当前自传体记忆只有 %d 条（程序需要至少 5 条）。" % len(公共状态.memorylist)
+            text += "\n\n注意：自传体记忆只有 %d 条（至少需要 5 条）。" % len(公共状态.memorylist)
         if not 公共状态.allact:
-            提示 += "\n\n注意：当前行为空间为空，导入后调整行为习惯时可能出错。"
-        if not messagebox.askyesno("确认导出", 提示 + "\n\n确定导出吗？", parent=self.窗口):
+            text += "\n\n注意：行为空间为空。"
+        if not messagebox.askyesno("确认导出", text + "\n\n确定导出？", parent=self.win):
             return
 
-        成功, 报告, 错误 = 记忆管理.导出记忆包(包名, self.覆盖路径)
-        if not 成功:
-            messagebox.showerror("导出失败", "写入失败：%s" % 错误, parent=self.窗口)
+        ok, report, error = 记忆管理.export_package(package, self.overrides)
+        if not ok:
+            messagebox.showerror("导出失败", "写入失败：%s" % error, parent=self.win)
             return
-        跳过 = [项["名称"] for 项 in 报告 if 项["状态"].startswith("跳过")]
-        汇总 = "、".join(
-            "%s %s" % (项["名称"], "（跳过）" if str(项["条数"]) == "—" else "%s 条" % 项["条数"])
-            for 项 in 报告)
-        消息 = "已导出到记忆包「%s」：\n\n%s" % (包名, 汇总)
-        if 跳过:
-            消息 += "\n\n未写入：\n" + "、".join(跳过)
-        messagebox.showinfo("导出完成", 消息, parent=self.窗口)
-        self._刷新版本列表()
-        self._刷新明细()
-        self._校验()
+        skipped = [item["name"] for item in report if item["status"].startswith("跳过")]
+        summary = "、".join(
+            "%s %s" % (item["name"], "（跳过）" if str(item["count"]) == "—" else "%s 条" % item["count"])
+            for item in report)
+        text = "已导出「%s」：\n\n%s" % (package, summary)
+        if skipped:
+            text += "\n\n未写入：" + "、".join(skipped)
+        messagebox.showinfo("导出完成", text, parent=self.win)
+        self._refresh_versions()
+        self._refresh_detail()
+        self._validate()
 
-    def _选择文件(self, 键):
-        """逐文件导入：为某个类型单独挑选文件（其余类型仍按版本号自动拼）"""
-        规格 = [项 for 项 in 记忆管理.类型规格 if 项["键"] == 键][0]
-        当前 = self.覆盖路径.get(键) or 记忆管理.默认路径(规格, self.包名.get().strip() or "未命名")
-        初始目录 = os.path.dirname(os.path.abspath(当前))
-        if not os.path.isdir(初始目录):
-            初始目录 = os.getcwd()
-        路径 = filedialog.askopenfilename(
-            parent=self.窗口, title="选择「%s」文件" % 规格["名称"],
-            initialdir=初始目录,
-            filetypes=[("文本文件", "*.txt"), ("CSV文件", "*.csv"), ("所有文件", "*.*")])
-        if not 路径:
-            return
-        self.覆盖路径[键] = os.path.normpath(路径)
-        self._刷新明细()
-        self._校验()
-
-    def _恢复全部(self):
-        self.覆盖路径.clear()
-        self._刷新明细()
-        self._校验()
-
-    def _关闭(self):
-        if self.模式 == "导入":
-            if 公共状态.当前记忆包 is None:
-                if not messagebox.askyesno("退出程序",
-                                           "还没有导入记忆包，关闭后程序将退出。\n\n确定吗？",
-                                           parent=self.窗口):
-                    return
+    def _toggle_per_file(self):
+        """勾选“逐文件导入”后显示每行的“选择文件…”；取消则回到一键并清空手动指定。"""
+        show = bool(self.per_file.get())
+        if not show:
+            self.overrides.clear()
+        for row in self.rows.values():
+            if show:
+                row["pick"].grid()
             else:
-                if not messagebox.askyesno("关闭", "关闭记忆包窗口，进入主程序？",
-                                           parent=self.窗口):
+                row["pick"].grid_remove()
+        if hasattr(self, "reset_btn"):
+            self.reset_btn.config(state=NORMAL if self.overrides else DISABLED)
+        self._refresh_detail()
+        self._validate()
+
+    def _pick_file(self, key):
+        spec = [item for item in 记忆管理.TYPE_SPECS if item["key"] == key][0]
+        current = self.overrides.get(key) or 记忆管理.default_path(
+            spec, self.package.get().strip() or "未命名")
+        folder = os.path.dirname(os.path.abspath(current))
+        if not os.path.isdir(folder):
+            folder = os.getcwd()
+        path = filedialog.askopenfilename(
+            parent=self.win, title="选择「%s」文件" % spec["name"],
+            initialdir=folder,
+            filetypes=[("文本文件", "*.txt"), ("CSV文件", "*.csv"), ("所有文件", "*.*")])
+        if not path:
+            return
+        self.overrides[key] = os.path.normpath(path)
+        self._refresh_detail()
+        self._validate()
+
+    def _reset_overrides(self):
+        self.overrides.clear()
+        self._refresh_detail()
+        self._validate()
+
+    def _show_errors(self, errors):
+        lines = ["%s：%d 行无法解析" % (item["name"], len(item["bad_lines"])) for item in errors]
+        messagebox.showerror("导入失败", "\n".join(lines), parent=self.win)
+
+    def _on_close(self):
+        if self.mode == "导入":
+            if 公共状态.当前记忆包 is None:
+                if not messagebox.askyesno("退出程序", "还没有导入记忆，关闭后程序退出。\n\n确定吗？",
+                                           parent=self.win):
                     return
-        self.窗口.destroy()
+            elif not messagebox.askyesno("关闭", "关闭窗口，进入主程序？", parent=self.win):
+                return
+        self.win.destroy()
 
 
-def 打开记忆包窗口(模式="导出"):
+def open_package_window(mode="导出"):
     """打开记忆包窗口。导入模式会阻塞到窗口关闭（供启动时使用）；
     导出模式同样阻塞，避免导出过程中主循环改动内存。"""
     if 公共状态.root is None:
         return
-    已有 = 公共状态.记忆包窗口
-    if 已有 is not None:
+    existing = 公共状态.记忆包窗口
+    if existing is not None:
         try:
-            if 已有.窗口.winfo_exists():
-                已有.窗口.lift()
-                已有.窗口.focus_force()
+            if existing.win.winfo_exists():
+                existing.win.lift()
+                existing.win.focus_force()
                 return
         except Exception:
             pass
-    窗口 = 记忆包窗口(公共状态.root, 模式)
-    公共状态.记忆包窗口 = 窗口
+    window = PackageWindow(公共状态.root, mode)
+    公共状态.记忆包窗口 = window
     try:
-        窗口.等待关闭()
+        window.wait_closed()
     finally:
         公共状态.记忆包窗口 = None

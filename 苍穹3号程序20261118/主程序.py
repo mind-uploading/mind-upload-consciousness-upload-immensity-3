@@ -13,8 +13,8 @@ from 价值分类记忆与价值系统.价值分类记忆与价值系统 import 
 from 行为与计划模块.行为与计划模块 import ACT,update_v,change_acthablist,choose_act,update_psav_memory,act_detail,output_act
 from 记忆模块.记忆模块 import add_memorylist
 from 世界模型.世界模型 import update_transmatrix,predict_next_state_chance
-from 全局神经工作空间.全局神经工作空间 import 初始化界面,extend_senlist,打开记忆包窗口
-from 记忆管理.记忆管理 import 导出记忆包
+from 全局神经工作空间.全局神经工作空间 import 初始化界面,extend_senlist,open_package_window
+from 记忆管理.记忆管理 import export_package
 
 #语言模块
 from 语言模块.语言模块 import use_dictionary,update_dictionary,generate_sentence,update_word_trans_matrix
@@ -95,7 +95,7 @@ print("请进行同步--------------")
 初始化界面()
 
 #同步心智内容（情绪习惯列表/行为空间/行为习惯列表/自传体记忆/状态转移概率矩阵/词典/词转移概率矩阵/ART）
-打开记忆包窗口("导入")
+open_package_window("导入")
 if 公共状态.当前记忆包 is None:
     print("未导入记忆包，程序退出。")
     公共状态.root.destroy()
@@ -343,7 +343,7 @@ while True:
 
     #若未进入不可变模式且勾选了“每回合自动保存”，本回合结束后写回当前记忆包
     if 公共状态.mode!="0" and 公共状态.varcb自动保存 is not None and 公共状态.varcb自动保存.get()==1 and 公共状态.当前记忆包:
-        成功,报告,错误=导出记忆包(公共状态.当前记忆包)
+        成功,报告,错误=export_package(公共状态.当前记忆包)
         if 成功:
             print("已自动保存到记忆包：",公共状态.当前记忆包)
         else:

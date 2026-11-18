@@ -5,438 +5,440 @@ import re
 import 公共状态
 
 
-数据根目录 = "意识数据"
+DATA_ROOT = "意识数据"
 
 #9 类意识数据的规格
-#  键：内部标识
-#  名称：界面显示名
-#  目录：意识数据下的子目录
-#  前缀/后缀：文件名 = 前缀 + 包名 + 后缀
-#  变量：对应 公共状态 里的变量（ART 单独处理）
-类型规格 = [
-    {"键": "喜",       "名称": "喜习惯列表",     "目录": os.path.join("情绪习惯列表", "喜习惯列表"), "前缀": "喜习惯列表",     "后缀": ".txt", "变量": "haphablist"},
-    {"键": "哀",       "名称": "哀习惯列表",     "目录": os.path.join("情绪习惯列表", "哀习惯列表"), "前缀": "哀习惯列表",     "后缀": ".txt", "变量": "sadhablist"},
-    {"键": "行为空间", "名称": "行为空间",       "目录": "行为空间",         "前缀": "行为空间",       "后缀": ".txt", "变量": "allact"},
-    {"键": "行为习惯", "名称": "行为习惯列表",   "目录": "行为习惯列表",     "前缀": "行为习惯列表",   "后缀": ".txt", "变量": "acthablist"},
-    {"键": "自传体",   "名称": "自传体记忆",     "目录": "自传体记忆",       "前缀": "自传体记忆",     "后缀": ".txt", "变量": "memorylist"},
-    {"键": "状态转移", "名称": "状态转移概率矩阵","目录": "状态转移概率矩阵", "前缀": "状态转移概率矩阵","后缀": ".txt", "变量": "transmatrix"},
-    {"键": "词典",     "名称": "词典",           "目录": "词典",             "前缀": "词典",           "后缀": ".txt", "变量": "dictionary"},
-    {"键": "词转移",   "名称": "词转移概率矩阵", "目录": "词转移概率矩阵",   "前缀": "词转移概率矩阵", "后缀": ".txt", "变量": "word_trans_matrix"},
-    {"键": "ART",      "名称": "ART原型",        "目录": "ART",              "前缀": "ART",            "后缀": ".csv", "变量": None},
+#  key：内部标识
+#  name：界面显示名
+#  dir：意识数据下的子目录
+#  prefix/suffix：文件名 = prefix + 包名 + suffix
+#  var：对应 公共状态 里的变量（ART 单独处理）
+TYPE_SPECS = [
+    {"key": "喜",       "name": "喜习惯列表",      "dir": os.path.join("情绪习惯列表", "喜习惯列表"), "prefix": "喜习惯列表",      "suffix": ".txt", "var": "haphablist"},
+    {"key": "哀",       "name": "哀习惯列表",      "dir": os.path.join("情绪习惯列表", "哀习惯列表"), "prefix": "哀习惯列表",      "suffix": ".txt", "var": "sadhablist"},
+    {"key": "行为空间", "name": "行为空间",        "dir": "行为空间",         "prefix": "行为空间",        "suffix": ".txt", "var": "allact"},
+    {"key": "行为习惯", "name": "行为习惯列表",    "dir": "行为习惯列表",     "prefix": "行为习惯列表",    "suffix": ".txt", "var": "acthablist"},
+    {"key": "自传体",   "name": "自传体记忆",      "dir": "自传体记忆",       "prefix": "自传体记忆",      "suffix": ".txt", "var": "memorylist"},
+    {"key": "状态转移", "name": "状态转移概率矩阵", "dir": "状态转移概率矩阵", "prefix": "状态转移概率矩阵", "suffix": ".txt", "var": "transmatrix"},
+    {"key": "词典",     "name": "词典",            "dir": "词典",             "prefix": "词典",            "suffix": ".txt", "var": "dictionary"},
+    {"key": "词转移",   "name": "词转移概率矩阵",  "dir": "词转移概率矩阵",   "prefix": "词转移概率矩阵",   "suffix": ".txt", "var": "word_trans_matrix"},
+    {"key": "ART",      "name": "ART原型",         "dir": "ART",              "prefix": "ART",             "suffix": ".csv", "var": None},
 ]
 
 # ---------------- 包名 ----------------
 
-非法字符 = set('\\/:*?"<>|')
+ILLEGAL_CHARS = set('\\/:*?"<>|')
 
 
-def 规范化包名(版本号):
+def normalize_package(version):
     """版本号（文件名里“前缀”和扩展名之间的部分）→ 包名；不合法时返回 (None, 原因)。
     沿用原有意识数据的命名习惯：100、研究者_v1、螺旋藻v2_2 都可以。"""
-    版本号 = (版本号 or "").strip()
-    if not 版本号:
+    version = (version or "").strip()
+    if not version:
         return None, "请填写版本号"
-    for 字符 in 版本号:
-        if 字符 in 非法字符:
+    for char in version:
+        if char in ILLEGAL_CHARS:
             return None, "版本号中不能包含 \\ / : * ? \" < > | 等字符"
-    return 版本号, ""
+    return version, ""
 
 
-def 建议版本号(当前包名=None):
+def suggest_version(current_package=None):
     """导出界面预填：当前包名下一位版本号（如 研究者_v1 → 研究者_v2、103 → 104）"""
-    if 当前包名:
-        匹配 = re.match(r"^(.*?)(\d+)$", 当前包名)
-        if 匹配:
-            return 匹配.group(1) + str(int(匹配.group(2)) + 1)
-    最大 = 0
-    for 包名 in 列出记忆包():
-        if 包名.isascii() and 包名.isdigit():
-            最大 = max(最大, int(包名))
-    return str(最大 + 1)
+    if current_package:
+        matched = re.match(r"^(.*?)(\d+)$", current_package)
+        if matched:
+            return matched.group(1) + str(int(matched.group(2)) + 1)
+    largest = 0
+    for package in list_packages():
+        if package.isascii() and package.isdigit():
+            largest = max(largest, int(package))
+    return str(largest + 1)
 
 
 # ---------------- 路径与统计 ----------------
 
-def 默认路径(规格, 包名):
-    return os.path.join(数据根目录, 规格["目录"], 规格["前缀"] + 包名 + 规格["后缀"])
+def default_path(spec, package):
+    return os.path.join(DATA_ROOT, spec["dir"], spec["prefix"] + package + spec["suffix"])
 
 
-def _读行(路径):
-    with open(路径, "r", encoding="utf-8-sig") as 文件:
-        return [行.strip() for 行 in 文件]
+def _read_lines(path):
+    with open(path, "r", encoding="utf-8-sig") as file:
+        return [line.strip() for line in file]
 
 
-def _非空行数(路径):
-    return sum(1 for 行 in _读行(路径) if 行)
+def _count_nonempty(path):
+    return sum(1 for line in _read_lines(path) if line)
 
 
-def _ART形状(路径):
-    with open(路径, "r", encoding="utf-8-sig") as 文件:
-        行列表 = [行 for 行 in 文件 if 行.strip()]
-    if not 行列表:
+def _art_shape(path):
+    with open(path, "r", encoding="utf-8-sig") as file:
+        rows = [line for line in file if line.strip()]
+    if not rows:
         return 0, 0
-    列数 = len([字段 for 字段 in 行列表[0].strip().split(",") if 字段.strip()])
-    return len(行列表), 列数
+    columns = len([field for field in rows[0].strip().split(",") if field.strip()])
+    return len(rows), columns
 
 
-def 条数(路径, 键):
+def count_rows(path, key):
     """文件不存在返回 None；ART 返回“行×列”；其余返回非空行数"""
-    if not os.path.exists(路径):
+    if not os.path.exists(path):
         return None
-    if 键 == "ART":
-        行数, 列数 = _ART形状(路径)
-        return "%d×%d" % (行数, 列数)
-    return _非空行数(路径)
+    if key == "ART":
+        rows, columns = _art_shape(path)
+        return "%d×%d" % (rows, columns)
+    return _count_nonempty(path)
 
 
-def 列出记忆包():
-    """扫描 意识数据，返回 {包名: {"路径": {键: 路径}, "时间": 最后修改时间}}"""
-    结果 = {}
-    for 规格 in 类型规格:
-        目录 = os.path.join(数据根目录, 规格["目录"])
-        if not os.path.isdir(目录):
+def list_packages():
+    """扫描 意识数据，返回 {包名: {"paths": {key: 路径}, "mtime": 最后修改时间}}"""
+    result = {}
+    for spec in TYPE_SPECS:
+        folder = os.path.join(DATA_ROOT, spec["dir"])
+        if not os.path.isdir(folder):
             continue
-        for 文件名 in os.listdir(目录):
-            if not (文件名.startswith(规格["前缀"]) and 文件名.endswith(规格["后缀"])):
+        for filename in os.listdir(folder):
+            if not (filename.startswith(spec["prefix"]) and filename.endswith(spec["suffix"])):
                 continue
-            包名 = 文件名[len(规格["前缀"]):len(文件名) - len(规格["后缀"])]
-            if not 包名:
+            package = filename[len(spec["prefix"]):len(filename) - len(spec["suffix"])]
+            if not package:
                 continue
-            路径 = os.path.join(目录, 文件名)
-            条目 = 结果.setdefault(包名, {"路径": {}, "时间": 0.0})
-            条目["路径"][规格["键"]] = 路径
+            path = os.path.join(folder, filename)
+            entry = result.setdefault(package, {"paths": {}, "mtime": 0.0})
+            entry["paths"][spec["key"]] = path
             try:
-                条目["时间"] = max(条目["时间"], os.path.getmtime(路径))
+                entry["mtime"] = max(entry["mtime"], os.path.getmtime(path))
             except OSError:
                 pass
-    return 结果
+    return result
 
 
-def 包内文件(包名, 覆盖路径=None):
+def package_files(package, overrides=None):
     """导入用：逐类列出路径、是否存在、文件里的条数"""
-    覆盖路径 = 覆盖路径 or {}
-    结果 = []
-    for 规格 in 类型规格:
-        路径 = 覆盖路径.get(规格["键"]) or 默认路径(规格, 包名)
-        存在 = os.path.exists(路径)
-        结果.append({
-            "键": 规格["键"],
-            "名称": 规格["名称"],
-            "路径": 路径,
-            "存在": 存在,
-            "条数": 条数(路径, 规格["键"]) if 存在 else None,
+    overrides = overrides or {}
+    result = []
+    for spec in TYPE_SPECS:
+        path = overrides.get(spec["key"]) or default_path(spec, package)
+        exists = os.path.exists(path)
+        result.append({
+            "key": spec["key"],
+            "name": spec["name"],
+            "path": path,
+            "exists": exists,
+            "count": count_rows(path, spec["key"]) if exists else None,
         })
-    return 结果
+    return result
 
 
-def 导出预览(包名, 覆盖路径=None):
+def export_preview(package, overrides=None):
     """导出用：逐类列出目标路径、内存里条数、将新建还是覆盖"""
-    覆盖路径 = 覆盖路径 or {}
-    结果 = []
-    for 规格 in 类型规格:
-        键 = 规格["键"]
-        路径 = 覆盖路径.get(键) or 默认路径(规格, 包名)
-        存在 = os.path.exists(路径)
-        if 键 == "ART":
+    overrides = overrides or {}
+    result = []
+    for spec in TYPE_SPECS:
+        key = spec["key"]
+        path = overrides.get(key) or default_path(spec, package)
+        exists = os.path.exists(path)
+        if key == "ART":
             if 公共状态.art_model is None:
-                内存条数, 状态 = "—", "跳过（模型未加载）"
+                count, status = "—", "跳过（模型未加载）"
             else:
-                原型 = 公共状态.art_model.prototypes
-                内存条数, 状态 = "%d×%d" % (len(原型), len(原型[0]) if len(原型) else 0), ("覆盖" if 存在 else "新建")
+                prototypes = 公共状态.art_model.prototypes
+                count = "%d×%d" % (len(prototypes), len(prototypes[0]) if len(prototypes) else 0)
+                status = "覆盖" if exists else "新建"
         else:
-            内存条数 = len(getattr(公共状态, 规格["变量"], []) or [])
-            状态 = "覆盖" if 存在 else "新建"
-        结果.append({
-            "键": 键,
-            "名称": 规格["名称"],
-            "路径": 路径,
-            "存在": 存在,
-            "条数": 内存条数,
-            "状态": 状态,
+            count = len(getattr(公共状态, spec["var"], []) or [])
+            status = "覆盖" if exists else "新建"
+        result.append({
+            "key": key,
+            "name": spec["name"],
+            "path": path,
+            "exists": exists,
+            "count": count,
+            "status": status,
         })
-    return 结果
+    return result
 
 
 # ---------------- 解析 ----------------
 
-def _概念列表(字段):
-    return [片段 for 片段 in 字段.split("。") if 片段]
+def _concept_list(field):
+    return [part for part in field.split("。") if part]
 
 
-def _数字(字段):
+def _to_number(field):
     try:
-        return float(字段)
+        return float(field)
     except (TypeError, ValueError):
         return None
 
 
-def _整数(字段):
-    数值 = _数字(字段)
-    if 数值 is None or 数值 != int(数值):
+def _to_int(field):
+    number = _to_number(field)
+    if number is None or number != int(number):
         return None
-    return int(数值)
+    return int(number)
 
 
-def _解析_情绪(路径):
-    列表, 坏行 = [], []
-    for 行号, 行 in enumerate(_读行(路径), 1):
-        if not 行:
+def _parse_emotion(path):
+    items, bad_lines = [], []
+    for line_no, line in enumerate(_read_lines(path), 1):
+        if not line:
             continue
-        段 = 行.split("；")
-        if len(段) != 2:
-            坏行.append((行号, 行, "应为 2 段，实际 %d 段" % len(段)))
+        parts = line.split("；")
+        if len(parts) != 2:
+            bad_lines.append((line_no, line, "应为 2 段，实际 %d 段" % len(parts)))
             continue
-        强度 = _数字(段[1])
-        if 强度 is None:
-            坏行.append((行号, 行, "情绪强度不是数字"))
+        strength = _to_number(parts[1])
+        if strength is None:
+            bad_lines.append((line_no, line, "情绪强度不是数字"))
             continue
-        列表.append([_概念列表(段[0]), int(强度) if 强度 == int(强度) else 强度])
-    return 列表, 坏行
+        items.append([_concept_list(parts[0]), int(strength) if strength == int(strength) else strength])
+    return items, bad_lines
 
 
-def _解析_行为空间(路径):
-    return [行 for 行 in _读行(路径) if 行], []
+def _parse_action_space(path):
+    return [line for line in _read_lines(path) if line], []
 
 
-def _解析_三列(路径):
+def _parse_three_columns(path):
     """行为习惯、自传体记忆：概念；概念；数值"""
-    列表, 坏行 = [], []
-    for 行号, 行 in enumerate(_读行(路径), 1):
-        if not 行:
+    items, bad_lines = [], []
+    for line_no, line in enumerate(_read_lines(path), 1):
+        if not line:
             continue
-        段 = 行.split("；")
-        if len(段) != 3:
-            坏行.append((行号, 行, "应为 3 段，实际 %d 段" % len(段)))
+        parts = line.split("；")
+        if len(parts) != 3:
+            bad_lines.append((line_no, line, "应为 3 段，实际 %d 段" % len(parts)))
             continue
-        数值 = _数字(段[2])
-        if 数值 is None:
-            坏行.append((行号, 行, "价值不是数字"))
+        value = _to_number(parts[2])
+        if value is None:
+            bad_lines.append((line_no, line, "价值不是数字"))
             continue
-        列表.append([_概念列表(段[0]), _概念列表(段[1]), 数值])
-    return 列表, 坏行
+        items.append([_concept_list(parts[0]), _concept_list(parts[1]), value])
+    return items, bad_lines
 
 
-def _解析_状态转移(路径):
-    列表, 坏行 = [], []
-    for 行号, 行 in enumerate(_读行(路径), 1):
-        if not 行:
+def _parse_transition(path):
+    items, bad_lines = [], []
+    for line_no, line in enumerate(_read_lines(path), 1):
+        if not line:
             continue
-        段 = 行.split("；")
-        转移 = [_概念列表(段[0])]
-        错误 = None
-        for 后继字段 in 段[1:]:
-            子段 = 后继字段.split("、")
-            if len(子段) != 3:
-                错误 = "转移应为 3 段，实际 %d 段" % len(子段)
+        parts = line.split("；")
+        transition = [_concept_list(parts[0])]
+        error = None
+        for successor_field in parts[1:]:
+            sub_parts = successor_field.split("、")
+            if len(sub_parts) != 3:
+                error = "转移应为 3 段，实际 %d 段" % len(sub_parts)
                 break
-            概率 = _数字(子段[1])
-            次数 = _整数(子段[2])
-            if 概率 is None or 次数 is None:
-                错误 = "转移的概率或次数不是数字"
+            probability = _to_number(sub_parts[1])
+            times = _to_int(sub_parts[2])
+            if probability is None or times is None:
+                error = "转移的概率或次数不是数字"
                 break
-            转移.append([_概念列表(子段[0]), 概率, 次数])
-        if 错误:
-            坏行.append((行号, 行, 错误))
+            transition.append([_concept_list(sub_parts[0]), probability, times])
+        if error:
+            bad_lines.append((line_no, line, error))
             continue
-        列表.append(转移)
-    return 列表, 坏行
+        items.append(transition)
+    return items, bad_lines
 
 
-def _解析_词典(路径):
-    列表, 坏行 = [], []
-    for 行号, 行 in enumerate(_读行(路径), 1):
-        if not 行:
+def _parse_dictionary(path):
+    items, bad_lines = [], []
+    for line_no, line in enumerate(_read_lines(path), 1):
+        if not line:
             continue
-        段 = 行.split("；")
-        if len(段) != 3:
-            坏行.append((行号, 行, "应为 3 段，实际 %d 段" % len(段)))
+        parts = line.split("；")
+        if len(parts) != 3:
+            bad_lines.append((line_no, line, "应为 3 段，实际 %d 段" % len(parts)))
             continue
-        权重 = _数字(段[2])
-        if 权重 is None:
-            坏行.append((行号, 行, "权重不是数字"))
+        weight = _to_number(parts[2])
+        if weight is None:
+            bad_lines.append((line_no, line, "权重不是数字"))
             continue
-        列表.append([段[0], 段[1], 权重])
-    return 列表, 坏行
+        items.append([parts[0], parts[1], weight])
+    return items, bad_lines
 
 
-解析器 = {
-    "喜": _解析_情绪,
-    "哀": _解析_情绪,
-    "行为空间": _解析_行为空间,
-    "行为习惯": _解析_三列,
-    "自传体": _解析_三列,
-    "状态转移": _解析_状态转移,
-    "词典": _解析_词典,
-    "词转移": _解析_词典,
+PARSERS = {
+    "喜": _parse_emotion,
+    "哀": _parse_emotion,
+    "行为空间": _parse_action_space,
+    "行为习惯": _parse_three_columns,
+    "自传体": _parse_three_columns,
+    "状态转移": _parse_transition,
+    "词典": _parse_dictionary,
+    "词转移": _parse_dictionary,
 }
 
 
 # ---------------- 序列化 ----------------
 
-def _数转文本(数值):
-    if isinstance(数值, bool):
-        return str(int(数值))
-    if isinstance(数值, int):
-        return str(数值)
-    数值 = float(数值)
-    if 数值 == int(数值):
-        return str(int(数值))
-    return repr(数值)#最短且能精确回读的写法
+def _number_text(value):
+    if isinstance(value, bool):
+        return str(int(value))
+    if isinstance(value, int):
+        return str(value)
+    value = float(value)
+    if value == int(value):
+        return str(int(value))
+    return repr(value)#最短且能精确回读的写法
 
 
-def _概念字段(概念):
-    return "".join(str(单个) + "。" for 单个 in 概念)
+def _concept_field(concept):
+    return "".join(str(item) + "。" for item in concept)
 
 
-def _序列化_情绪(列表):
-    return "".join(_概念字段(概念) + "；" + _数转文本(值) + "\n" for 概念, 值 in 列表)
+def _serialize_emotion(items):
+    return "".join(_concept_field(concept) + "；" + _number_text(value) + "\n"
+                   for concept, value in items)
 
 
-def _序列化_行为空间(列表):
-    return "".join(str(行为) + "\n" for 行为 in 列表)
+def _serialize_action_space(items):
+    return "".join(str(action) + "\n" for action in items)
 
 
-def _序列化_三列(列表):
-    return "".join(_概念字段(前) + "；" + _概念字段(后) + "；" + _数转文本(值) + "\n"
-                   for 前, 后, 值 in 列表)
+def _serialize_three_columns(items):
+    return "".join(_concept_field(first) + "；" + _concept_field(second) + "；" + _number_text(value) + "\n"
+                   for first, second, value in items)
 
 
-def _序列化_状态转移(列表):
-    输出 = ""
-    for 转移 in 列表:
-        行 = _概念字段(转移[0])
-        for 后继 in 转移[1:]:
-            行 += "；" + _概念字段(后继[0]) + "、" + _数转文本(后继[1]) + "、" + _数转文本(后继[2])
-        输出 += 行 + "\n"
-    return 输出
+def _serialize_transition(items):
+    output = ""
+    for transition in items:
+        line = _concept_field(transition[0])
+        for successor in transition[1:]:
+            line += "；" + _concept_field(successor[0]) + "、" + _number_text(successor[1]) + "、" + _number_text(successor[2])
+        output += line + "\n"
+    return output
 
 
-def _序列化_词典(列表):
-    return "".join(str(词) + "；" + str(义) + "；" + _数转文本(权重) + "\n"
-                   for 词, 义, 权重 in 列表)
+def _serialize_dictionary(items):
+    return "".join(str(word) + "；" + str(meaning) + "；" + _number_text(weight) + "\n"
+                   for word, meaning, weight in items)
 
 
-def _序列化_ART(原型):
-    行文本 = []
-    for 行 in 原型:
-        行文本.append(",".join("%.10g" % float(数值) for 数值 in 行))
-    if not 行文本:
+def _serialize_art(prototypes):
+    lines = []
+    for row in prototypes:
+        lines.append(",".join("%.10g" % float(value) for value in row))
+    if not lines:
         return ""
-    return "\n".join(行文本) + "\n"
+    return "\n".join(lines) + "\n"
 
 
-序列化器 = {
-    "喜": _序列化_情绪,
-    "哀": _序列化_情绪,
-    "行为空间": _序列化_行为空间,
-    "行为习惯": _序列化_三列,
-    "自传体": _序列化_三列,
-    "状态转移": _序列化_状态转移,
-    "词典": _序列化_词典,
-    "词转移": _序列化_词典,
+SERIALIZERS = {
+    "喜": _serialize_emotion,
+    "哀": _serialize_emotion,
+    "行为空间": _serialize_action_space,
+    "行为习惯": _serialize_three_columns,
+    "自传体": _serialize_three_columns,
+    "状态转移": _serialize_transition,
+    "词典": _serialize_dictionary,
+    "词转移": _serialize_dictionary,
 }
 
 
 # ---------------- 导入 / 导出 ----------------
 
-def 导入记忆包(包名, 覆盖路径=None, 跳过坏行=False, 提交=True):
+def import_package(package, overrides=None, skip_bad_lines=False, commit=True):
     """读取一个记忆包。
-    提交=True 且没有任何坏行时，才写入 公共状态（保证不会导入半个包）。
+    commit=True 且没有任何坏行时，才写入 公共状态（保证不会导入半个包）。
     返回 (成功, 报告, 错误列表)"""
-    覆盖路径 = 覆盖路径 or {}
-    暂存 = {}
-    报告 = []
-    错误 = []
+    overrides = overrides or {}
+    staged = {}
+    report = []
+    errors = []
 
-    for 规格 in 类型规格:
-        键 = 规格["键"]
-        if 键 == "ART":
+    for spec in TYPE_SPECS:
+        key = spec["key"]
+        if key == "ART":
             continue
-        路径 = 覆盖路径.get(键) or 默认路径(规格, 包名)
-        if not os.path.exists(路径):
-            暂存[规格["变量"]] = []
-            报告.append({"键": 键, "名称": 规格["名称"], "路径": 路径,
-                         "状态": "缺失（按空表导入）", "条数": 0, "坏行": []})
+        path = overrides.get(key) or default_path(spec, package)
+        if not os.path.exists(path):
+            staged[spec["var"]] = []
+            report.append({"key": key, "name": spec["name"], "path": path,
+                           "status": "缺失（按空表导入）", "count": 0, "bad_lines": []})
             continue
-        列表, 坏行 = 解析器[键](路径)
-        if 坏行 and not 跳过坏行:
-            错误.append({"键": 键, "名称": 规格["名称"], "路径": 路径, "坏行": 坏行})
-        暂存[规格["变量"]] = 列表
-        报告.append({
-            "键": 键,
-            "名称": 规格["名称"],
-            "路径": 路径,
-            "状态": "已读取" if not 坏行 else "含坏行（已跳过 %d 行）" % len(坏行),
-            "条数": len(列表),
-            "坏行": 坏行,
+        items, bad_lines = PARSERS[key](path)
+        if bad_lines and not skip_bad_lines:
+            errors.append({"key": key, "name": spec["name"], "path": path, "bad_lines": bad_lines})
+        staged[spec["var"]] = items
+        report.append({
+            "key": key,
+            "name": spec["name"],
+            "path": path,
+            "status": "已读取" if not bad_lines else "含坏行（跳过 %d 行）" % len(bad_lines),
+            "count": len(items),
+            "bad_lines": bad_lines,
         })
 
-    if 错误:
-        return False, 报告, 错误
-    if not 提交:
-        return True, 报告, []
+    if errors:
+        return False, report, errors
+    if not commit:
+        return True, report, []
 
-    for 变量, 列表 in 暂存.items():
-        setattr(公共状态, 变量, 列表)
+    for var, items in staged.items():
+        setattr(公共状态, var, items)
 
-    公共状态.当前记忆包 = 包名
+    公共状态.当前记忆包 = package
     #ART 由 知觉分类模块 按这个路径加载
-    公共状态.art原型路径 = 覆盖路径.get("ART") or 默认路径(
-        [规格 for 规格 in 类型规格 if 规格["键"] == "ART"][0], 包名)
-    return True, 报告, []
+    公共状态.art原型路径 = overrides.get("ART") or default_path(
+        [spec for spec in TYPE_SPECS if spec["key"] == "ART"][0], package)
+    return True, report, []
 
 
-def 导出记忆包(包名, 覆盖路径=None):
+def export_package(package, overrides=None):
     """把内存里的 9 类数据写成一个记忆包（两阶段写出，避免半个包）。
     返回 (成功, 报告, 错误信息)"""
-    覆盖路径 = 覆盖路径 or {}
-    待写 = []
-    报告 = []
+    overrides = overrides or {}
+    pending = []
+    report = []
 
-    for 规格 in 类型规格:
-        键 = 规格["键"]
-        路径 = 覆盖路径.get(键) or 默认路径(规格, 包名)
-        if 键 == "ART":
+    for spec in TYPE_SPECS:
+        key = spec["key"]
+        path = overrides.get(key) or default_path(spec, package)
+        if key == "ART":
             if 公共状态.art_model is None:
-                报告.append({"键": 键, "名称": 规格["名称"], "路径": 路径,
-                             "状态": "跳过（模型未加载）", "条数": "—"})
+                report.append({"key": key, "name": spec["name"], "path": path,
+                               "status": "跳过（模型未加载）", "count": "—"})
                 continue
-            内容 = _序列化_ART(公共状态.art_model.prototypes)
-            if not 内容:
-                报告.append({"键": 键, "名称": 规格["名称"], "路径": 路径,
-                             "状态": "跳过（无原型）", "条数": "—"})
+            content = _serialize_art(公共状态.art_model.prototypes)
+            if not content:
+                report.append({"key": key, "name": spec["name"], "path": path,
+                               "status": "跳过（无原型）", "count": "—"})
                 continue
         else:
-            内容 = 序列化器[键](getattr(公共状态, 规格["变量"], []) or [])
-        待写.append((路径, 内容, 键, 规格["名称"]))
-        报告.append({
-            "键": 键,
-            "名称": 规格["名称"],
-            "路径": 路径,
-            "状态": "覆盖" if os.path.exists(路径) else "新建",
-            "条数": 内容.count("\n"),
+            content = SERIALIZERS[key](getattr(公共状态, spec["var"], []) or [])
+        pending.append((path, content, key, spec["name"]))
+        report.append({
+            "key": key,
+            "name": spec["name"],
+            "path": path,
+            "status": "覆盖" if os.path.exists(path) else "新建",
+            "count": content.count("\n"),
         })
 
-    临时文件 = []
+    temp_files = []
     try:
-        for 路径, 内容, 键, 名称 in 待写:
-            目录 = os.path.dirname(路径)
-            if 目录:
-                os.makedirs(目录, exist_ok=True)
-            临时 = 路径 + ".tmp"
-            with open(临时, "w", encoding="utf-8", newline="") as 文件:
-                文件.write(内容)
-            临时文件.append((临时, 路径))
-    except Exception as 异常:
-        for 临时, 路径 in 临时文件:
+        for path, content, key, name in pending:
+            folder = os.path.dirname(path)
+            if folder:
+                os.makedirs(folder, exist_ok=True)
+            temp = path + ".tmp"
+            with open(temp, "w", encoding="utf-8", newline="") as file:
+                file.write(content)
+            temp_files.append((temp, path))
+    except Exception as error:
+        for temp, path in temp_files:
             try:
-                os.remove(临时)
+                os.remove(temp)
             except OSError:
                 pass
-        return False, 报告, str(异常)
+        return False, report, str(error)
 
-    for 临时, 路径 in 临时文件:
-        os.replace(临时, 路径)
+    for temp, path in temp_files:
+        os.replace(temp, path)
 
-    公共状态.当前记忆包 = 包名
-    return True, 报告, ""
+    公共状态.当前记忆包 = package
+    return True, report, ""
