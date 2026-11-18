@@ -346,7 +346,7 @@ while True:
     if 公共状态.mode!="0" and 公共状态.current_memory:
         成功,报告,错误=export_memory(AUTO_SAVE_NAME)
         if 成功:
-            print("已自动保存到记忆：",AUTO_SAVE_NAME)
+            print("保存到版本号：",AUTO_SAVE_NAME)
         else:
             print("自动保存失败：",错误)
 

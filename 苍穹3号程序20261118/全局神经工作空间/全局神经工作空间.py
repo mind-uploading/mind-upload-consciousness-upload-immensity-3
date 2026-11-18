@@ -135,7 +135,7 @@ def 初始化界面():
     txnloutput.grid(row=13,column=3)
 
     #自动保存常开：固定写到记忆「自动保存」，只保留最近一回合，导入时选它即可恢复
-    lb_autosave=Label(root,text="每回合自动保存到记忆「自动保存」",fg="#666")
+    lb_autosave=Label(root,text="每回合自动保存到版本号：自动保存",fg="#666")
     lb_autosave.grid(row=12,column=1)
     btn_memory=Button(root,text="记忆…（导出）",command=lambda: open_memory_window("导出"))
     btn_memory.grid(row=13,column=1)
@@ -443,7 +443,7 @@ class MemoryWindow:
             messagebox.showwarning("无法导出", error, parent=self.win)
             return
         exists = memory in 记忆管理.list_memories()
-        text = "将导出为「%s」（9 类文件）。" % memory
+        text = "保存到版本号：%s（9 类文件）。" % memory
         if exists:
             text += "\n\n同名文件会被覆盖。"
         if len(公共状态.memorylist) < 5:
@@ -461,7 +461,7 @@ class MemoryWindow:
         summary = "、".join(
             "%s %s" % (item["name"], "（跳过）" if str(item["count"]) == "—" else "%s 条" % item["count"])
             for item in report)
-        text = "记忆「%s」已导出：\n\n%s" % (memory, summary)
+        text = "保存到版本号：%s\n\n%s" % (memory, summary)
         if skipped:
             text += "\n\n未写入：" + "、".join(skipped)
         messagebox.showinfo("导出成功——————————————", text, parent=self.win)
