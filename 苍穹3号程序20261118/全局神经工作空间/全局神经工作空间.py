@@ -206,7 +206,7 @@ def extend_senlist():
 class 记忆包窗口:
     """一个窗口两种模式：启动时导入、运行中导出。
     两种模式不能在这个窗口里直接切换：导入会替换内存、导出会写盘，时机不同。
-    “一键模式”= 填一次名字+版本号，9 行文件路径自动拼出；
+    “一键模式”= 只填一个版本号，9 行文件路径自动拼出；
     “逐文件模式”= 在同一张文件明细表里单独指定某几行的路径。"""
 
     def __init__(self, 父窗口, 模式):
@@ -243,7 +243,6 @@ class 记忆包窗口:
     # ---------------- 界面 ----------------
 
     def _建界面(self):
-        self.名字 = StringVar()
         self.版本号 = StringVar()
         self.包名 = StringVar()
         self.状态 = StringVar(value="")
@@ -269,31 +268,21 @@ class 记忆包窗口:
 
         查询行 = Frame(self.窗口)
         查询行.pack(fill=X, padx=10, pady=3)
-        Label(查询行, text="名字").pack(side=LEFT)
-        self.名字框 = Entry(查询行, textvariable=self.名字, width=16)
-        self.名字框.pack(side=LEFT, padx=(2, 10))
         Label(查询行, text="版本号").pack(side=LEFT)
-        self.版本号框 = Entry(查询行, textvariable=self.版本号, width=10)
+        self.版本号框 = Entry(查询行, textvariable=self.版本号, width=16)
         self.版本号框.pack(side=LEFT, padx=(2, 10))
         Button(查询行, text="查找", width=6, command=self._查找).pack(side=LEFT)
-        Label(查询行, text="（可手动输入，按名字/版本号筛选已有版本）",
+        Label(查询行, text="（只需输入一个版本号；也可在下方列表双击已有的记忆包）",
               fg="#999").pack(side=LEFT, padx=8)
-        if self.模式 == "导入":
-            self.名字框.bind("<KeyRelease>", lambda 事件: self._刷新已有())
-            self.版本号框.bind("<KeyRelease>", lambda 事件: self._刷新已有())
-            self.名字框.bind("<Return>", lambda 事件: self._查找())
-            self.版本号框.bind("<Return>", lambda 事件: self._查找())
+        self.版本号框.bind("<Return>", lambda 事件: self._查找())
 
         包名行 = Frame(self.窗口)
         包名行.pack(fill=X, padx=10, pady=3)
         Label(包名行, text="记忆包").pack(side=LEFT)
         self.包名框 = Entry(包名行, textvariable=self.包名, width=32)
         self.包名框.pack(side=LEFT, padx=(2, 8))
-        if self.模式 == "导入":
-            self.包名框.bind("<Return>", lambda 事件: (self._刷新明细(), self._校验()))
-            self.包名框.bind("<KeyRelease>", lambda 事件: (self._刷新明细(), self._校验()))
-        else:
-            self.包名框.config(state="readonly")
+        #包名由版本号自动生成（或由列表双击选中），不需要手动填写
+        self.包名框.config(state="readonly")
         self.提示标签 = Label(包名行, textvariable=self.状态, fg="#0a58ca")
         self.提示标签.pack(side=LEFT, padx=6)
 
@@ -336,7 +325,6 @@ class 记忆包窗口:
         Button(按钮行, text=("退出" if self.模式 == "导入" else "关闭"), width=8,
                command=self._关闭).pack(side=RIGHT, padx=6)
 
-        self.名字.trace_add("write", self._输入变化)
         self.版本号.trace_add("write", self._输入变化)
 
     # ---------------- 事件 ----------------
@@ -354,20 +342,24 @@ class 记忆包窗口:
             if 公共状态.当前记忆包:
                 self.包名.set(公共状态.当前记忆包)
             return
-        当前 = 公共状态.当前记忆包 or ""
-        名字, 版本号 = 记忆管理.拆分包名(当前)
-        if not 名字:
-            名字 = "空白研究者"
-        self.名字.set(名字)
-        self.版本号.set(记忆管理.建议版本号(名字))
+        self.版本号.set(记忆管理.建议版本号())
 
     def _输入变化(self, *参数):
-        if self._静默 or self.模式 != "导出":
+        if self._静默:
             return
-        包名, _ = 记忆管理.规范化包名(self.名字.get(), self.版本号.get())
+        包名, 错误 = 记忆管理.规范化包名(self.版本号.get())
         self._静默 = True
-        self.包名.set(包名 or "")
+        if self.模式 == "导入":
+            #导入：输入合法版本号就自动切换包名；输入了非法内容则清空，避免误导入
+            if not 错误:
+                self.包名.set(包名)
+            elif self.版本号.get().strip():
+                self.包名.set("")
+        else:
+            self.包名.set(包名 or "")
         self._静默 = False
+        if self.模式 == "导入":
+            self._刷新已有()
         self._刷新明细()
         self._校验()
 
@@ -381,12 +373,9 @@ class 记忆包窗口:
     def _刷新已有(self):
         for 项目 in self.已有表.get_children():
             self.已有表.delete(项目)
-        名字 = self.名字.get().strip() if self.模式 == "导入" else ""
         版本号 = self.版本号.get().strip() if self.模式 == "导入" else ""
         包们 = 记忆管理.列出记忆包()
         for 包名 in sorted(包们):
-            if 名字 and 名字 not in 包名:
-                continue
             if 版本号 and 版本号 not in 包名:
                 continue
             值 = [包名]
@@ -402,8 +391,9 @@ class 记忆包窗口:
         if not 选中:
             return
         if self.模式 != "导入":
-            self.状态.set("提示：导出请直接填名字+版本号；选中已有包不会改动它")
+            self.状态.set("提示：导出只需填版本号；选中已有包不会改动它")
             return
+        #双击列表可以选中旧命名的记忆包（如 研究者_v1、张毅），导入时仍然兼容
         self._静默 = True
         self.包名.set(选中[0])
         self._静默 = False
@@ -440,7 +430,7 @@ class 记忆包窗口:
         有效 = False
         提示 = ""
         if self.模式 == "导出":
-            包名, 错误 = 记忆管理.规范化包名(self.名字.get(), self.版本号.get())
+            包名, 错误 = 记忆管理.规范化包名(self.版本号.get())
             if 错误:
                 提示 = 错误
             else:
@@ -451,7 +441,7 @@ class 记忆包窗口:
         else:
             包名 = self.包名.get().strip()
             if not 包名:
-                提示 = "请选择或手动输入记忆包"
+                提示 = "请输入版本号，或在下方列表双击选择记忆包"
             else:
                 找到 = 0
                 for 规格 in 记忆管理.类型规格:
@@ -523,7 +513,7 @@ class 记忆包窗口:
         self.窗口.destroy()
 
     def _执行导出(self):
-        包名, 错误 = 记忆管理.规范化包名(self.名字.get(), self.版本号.get())
+        包名, 错误 = 记忆管理.规范化包名(self.版本号.get())
         if 错误:
             messagebox.showwarning("无法导出", 错误, parent=self.窗口)
             return
